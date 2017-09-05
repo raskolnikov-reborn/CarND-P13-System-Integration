@@ -46,6 +46,7 @@ class DBWNode(object):
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
 
+        # Create all publishers 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',
@@ -53,15 +54,41 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
 
+        # Create all subscribers
+        rospy.Subscriber('/current_velocity', TwistStamped, self.cv_cb)
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.tc_cb)
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_cb)
+
+        self.dbw_enabled = False
+
+
+        arg_list = {
+            'max_lat_acc': max_lat_accel,
+            'max_steer_angle': max_steer_angle,
+            'steer_ratio': steer_ratio,
+            'wheel_base': wheel_base,
+            'accel_limit': accel_limit,
+            'decel_limit': decel_limit,
+            'brake_deadband': brake_deadband
+        }
+
+        self.controller = Controller(**arg_list)
+
+        # Set Hz rate for ros spin
+        self.loop_rate = 10
+
+        rate = rospy.Rate(self.loop_rate)
+
+        # Run the loop 
+        self.loop()
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
 
         # TODO: Subscribe to all the topics you need to
 
-        self.loop()
 
     def loop(self):
-        rate = rospy.Rate(50) # 50Hz
+        rate = rospy.Rate(self.loop_rate) # 50Hz
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
@@ -72,25 +99,49 @@ class DBWNode(object):
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
             #   self.publish(throttle, brake, steer)
+            # If everything is received and dbw is enabled 
+
+            if hasattr(self, 'twist_command') and hasattr(self, 'current_velocity') and self.dbw_enabled:
+                # Update the arguments to be passed to the controller object
+                args = {
+                    'twist_command': self.twist_command,
+                    'current_velocity': self.current_velocity
+                }
+                # Update the throttle, brake and steering values using the controller
+                throttle, brake, steer = self.controller.control (**args)
+                # Publish the updated values using the publish method
+                self.publish (throttle, brake, steer)
+
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
-        tcmd = ThrottleCmd()
-        tcmd.enable = True
-        tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
-        tcmd.pedal_cmd = throttle
-        self.throttle_pub.publish(tcmd)
+        if throttle > 0.001:
+            tcmd = ThrottleCmd()
+            tcmd.enable = True
+            tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
+            tcmd.pedal_cmd = throttle
+            self.throttle_pub.publish(tcmd)
 
         scmd = SteeringCmd()
         scmd.enable = True
         scmd.steering_wheel_angle_cmd = steer
         self.steer_pub.publish(scmd)
 
-        bcmd = BrakeCmd()
-        bcmd.enable = True
-        bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
-        bcmd.pedal_cmd = brake
-        self.brake_pub.publish(bcmd)
+        if brake > 0.001:
+            bcmd = BrakeCmd()
+            bcmd.enable = True
+            bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
+            bcmd.pedal_cmd = brake
+            self.brake_pub.publish(bcmd)
+    
+    def cv_cb(self, msg):
+        self.current_velocity = msg
+    
+    def tc_cb(self, msg):
+        self.twist_command = msg
+
+    def dbw_cb(self, msg):
+        self.dbw_enabled = msg.data
 
 
 if __name__ == '__main__':
