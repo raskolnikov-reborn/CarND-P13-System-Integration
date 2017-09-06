@@ -25,7 +25,7 @@ class Controller(object):
         # Create a PID Controller
         # TODO: Tune for simulator. Figure out a way to tune 
         # for the Actual vehicle on the track
-        self.pid_c = PID(0.1,0.0,0.0)
+        self.pid_c = PID(0.1,0.0001,0.4)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -71,7 +71,9 @@ class Controller(object):
             #TODO: Figure out how this tuning will work for the real vehicle
             brake = max(0.0, reverse_axis - self.brake_deadband)
 
+            # get the steering value from the yaw controller
             steering = self.steer_c.get_steering(target_v, target_w, present_v)
+
             return throttle, brake, steering
         else:
             # Update the last_update time and send Zeroes tuple

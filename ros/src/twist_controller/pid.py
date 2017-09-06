@@ -13,6 +13,7 @@ class PID(object):
 
         self.int_val = self.last_int_val = self.last_error = 0.
 
+
     def reset(self):
         self.int_val = 0.0
         self.last_int_val = 0.0
@@ -23,7 +24,7 @@ class PID(object):
         integral = self.int_val + error * sample_time;
         derivative = (error - self.last_error) / sample_time;
 
-        y = self.kp * error + self.ki * self.int_val + self.kd * derivative;
+        y = self.kp * error + self.ki * integral + self.kd * derivative;
         val = max(self.min, min(y, self.max))
 
         if val > self.max:
