@@ -5,7 +5,7 @@ import eventlet
 import eventlet.wsgi
 import time
 from flask import Flask, render_template
-
+import sys
 from bridge import Bridge
 from conf import conf
 
@@ -64,6 +64,8 @@ def image(sid, data):
     bridge.publish_camera(data)
 
 if __name__ == '__main__':
+
+    sys.excepthook = lambda *args: None
 
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)

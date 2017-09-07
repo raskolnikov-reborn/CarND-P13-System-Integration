@@ -38,7 +38,7 @@ class DBWNode(object):
         vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
         fuel_capacity = rospy.get_param('~fuel_capacity', 13.5)
         brake_deadband = rospy.get_param('~brake_deadband', .1)
-        decel_limit = rospy.get_param('~decel_limit', -5)
+        decel_limit = rospy.get_param('~decel_limit', -5.)
         accel_limit = rospy.get_param('~accel_limit', 1.)
         wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
         wheel_base = rospy.get_param('~wheel_base', 2.8498)
@@ -115,6 +115,8 @@ class DBWNode(object):
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
+
+        # Throttle Deadzone
         if throttle > 0.001:
             tcmd = ThrottleCmd()
             tcmd.enable = True
@@ -127,6 +129,7 @@ class DBWNode(object):
         scmd.steering_wheel_angle_cmd = steer
         self.steer_pub.publish(scmd)
 
+        # Brake Deadzone (only publish if value > 0.0)
         if brake > 0.001:
             bcmd = BrakeCmd()
             bcmd.enable = True

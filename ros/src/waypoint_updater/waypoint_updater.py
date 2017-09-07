@@ -78,6 +78,7 @@ class WaypointUpdater(object):
                 index = i%len(wp_list)
                 wpi = wp_list[index]
                 # Update Velocity (Temporary: get velocity after considering TLDC output)
+                # Units: Meters/Second
                 wpi.twist.twist.linear.x = 10.0;
                 lane.waypoints.append(wpi)
 

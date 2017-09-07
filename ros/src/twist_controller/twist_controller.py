@@ -3,7 +3,9 @@ from pid import PID
 from yaw_controller import YawController
 #GAS_DENSITY = 2.858
 #ONE_MPH = 0.44704
-
+MAX_V_MPS = 44.7 # Maximum speed in meters_per_second
+BRAKE_TORQUE_SCALE = 20000
+YAW_SCALE = 8.2
 
 class Controller(object):
     def __init__(self, **kwargs):
@@ -25,7 +27,7 @@ class Controller(object):
         # Create a PID Controller
         # TODO: Tune for simulator. Figure out a way to tune 
         # for the Actual vehicle on the track
-        self.pid_c = PID(0.1,0.0001,0.4)
+        self.pid_c = PID(0.2, 0.5, 0.0001, self.decel_limit, self.accel_limit)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -45,6 +47,10 @@ class Controller(object):
 
         # Set the Error
         vel_err = twist_linear.x - cv_linear.x
+
+        # Convert to fraction of v_max so pid output is directly 
+        # usable as input to throttle_cmd
+        vel_err = vel_err/MAX_V_MPS
 
         # Set the present and target values
         target_v = twist_linear.x
@@ -70,9 +76,12 @@ class Controller(object):
             # Only apply brakes if the reverse axis value is large enough to supersede the deadband
             #TODO: Figure out how this tuning will work for the real vehicle
             brake = max(0.0, reverse_axis - self.brake_deadband)
+            # Convert brake to Torque value since that is what the publisher expects
+            brake *= BRAKE_TORQUE_SCALE
 
             # get the steering value from the yaw controller
             steering = self.steer_c.get_steering(target_v, target_w, present_v)
+            # steering *= steer_ratio
 
             return throttle, brake, steering
         else:
