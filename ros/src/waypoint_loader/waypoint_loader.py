@@ -13,7 +13,7 @@ import rospy
 
 CSV_HEADER = ['x', 'y', 'z', 'yaw']
 MAX_DECEL = 1.0
-
+D2R = math.pi/180.0
 
 class WaypointLoader(object):
 
@@ -35,7 +35,7 @@ class WaypointLoader(object):
             rospy.logerr('%s is not a file', path)
 
     def quaternion_from_yaw(self, yaw):
-        return tf.transformations.quaternion_from_euler(0., 0., yaw)
+        return tf.transformations.quaternion_from_euler(0., 0., yaw*D2R)
 
     def get_velocity(self, velocity):
         return velocity/3.6
@@ -73,7 +73,7 @@ class WaypointLoader(object):
 
     def publish(self, waypoints):
         # rate = rospy.Rate(40)
-        rate =  rospy.Rate(3)
+        rate =  rospy.Rate(1)
         while not rospy.is_shutdown():
             lane = Lane()
             lane.header.frame_id = '/world'

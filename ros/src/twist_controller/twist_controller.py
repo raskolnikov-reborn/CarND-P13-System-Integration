@@ -1,5 +1,6 @@
 import rospy
 from pid import PID
+import math
 from yaw_controller import YawController
 #GAS_DENSITY = 2.858
 #ONE_MPH = 0.44704
@@ -27,7 +28,9 @@ class Controller(object):
         # Create a PID Controller
         # TODO: Tune for simulator. Figure out a way to tune 
         # for the Actual vehicle on the track
-        self.pid_c = PID(0.2, 0.5, 0.0001, self.decel_limit, self.accel_limit)
+        self.pid_c = PID(3.0, 0.01, 0.02, self.decel_limit, self.accel_limit)
+
+        self.steer_pid = PID(3.0,0.01,0.02, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -44,6 +47,8 @@ class Controller(object):
 
         cv_linear = kwargs['current_velocity'].twist.linear
         cv_angular = kwargs['current_velocity'].twist.angular
+
+        steer_feedback = kwargs['steer_feedback']
 
         # Set the Error
         vel_err = twist_linear.x - cv_linear.x
@@ -81,6 +86,9 @@ class Controller(object):
 
             # get the steering value from the yaw controller
             steering = self.steer_c.get_steering(target_v, target_w, present_v)
+
+            # update using steering pid loop
+            steering = self.steer_pid.step(steering - steer_feedback, dt)
             # steering *= steer_ratio
 
             return throttle, brake, steering

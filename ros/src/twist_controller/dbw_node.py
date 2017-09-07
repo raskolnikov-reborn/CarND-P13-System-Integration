@@ -58,6 +58,7 @@ class DBWNode(object):
         rospy.Subscriber('/current_velocity', TwistStamped, self.cv_cb)
         rospy.Subscriber('/twist_cmd', TwistStamped, self.tc_cb)
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_cb)
+        rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.st_report_cb)
 
         self.dbw_enabled = False
 
@@ -101,11 +102,13 @@ class DBWNode(object):
             #   self.publish(throttle, brake, steer)
             # If everything is received and dbw is enabled 
 
-            if hasattr(self, 'twist_command') and hasattr(self, 'current_velocity') and self.dbw_enabled:
+            
+            if hasattr(self, 'twist_command') and hasattr(self, 'current_velocity') and hasattr(self, 'steer_feedback') and self.dbw_enabled:
                 # Update the arguments to be passed to the controller object
                 args = {
                     'twist_command': self.twist_command,
-                    'current_velocity': self.current_velocity
+                    'current_velocity': self.current_velocity,
+                    'steer_feedback': self.steer_feedback
                 }
                 # Update the throttle, brake and steering values using the controller
                 throttle, brake, steer = self.controller.control (**args)
@@ -145,6 +148,9 @@ class DBWNode(object):
 
     def dbw_cb(self, msg):
         self.dbw_enabled = msg.data
+
+    def st_report_cb(self,msg):
+        self.steer_feedback = msg.steering_wheel_angle
 
 
 if __name__ == '__main__':
