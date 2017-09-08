@@ -30,7 +30,7 @@ class Controller(object):
         # for the Actual vehicle on the track
         self.pid_c = PID(3.0, 0.01, 0.02, self.decel_limit, self.accel_limit)
 
-        self.steer_pid = PID(3.0,0.01,0.02, -max_steer_angle, max_steer_angle)
+        self.steer_pid = PID(3.5,0.01,0.2, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
