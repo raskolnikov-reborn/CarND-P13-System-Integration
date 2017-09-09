@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy
+import numpy as np
 from std_msgs.msg import Int32
 from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import TrafficLightArray, TrafficLight
@@ -100,19 +101,18 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-		wp_list = self.waypoints.waypoints
+        wp_list = self.waypoints.waypoints
 		# Create variables for nearest distance and neighbour
-		neighbour_index = None
+        neighbour_index = None
 
         # Find Neighbour
         for i in range(len(wp_list)):
 			wpi = wp_list[i].pose.pose.position
 			distance = math.sqrt((wpi.x - pose.x)**2 + (wpi.y - pose.y)**2 + (wpi.z - pose.z)**2)
 			if distance < neighbour_distance:
-			neighbour_index = i
+			    neighbour_index = i
         
-
-		return neighbour_index
+        return neighbour_index
 
 
     def project_to_image_plane(self, point_in_world):
@@ -146,10 +146,29 @@ class TLDetector(object):
 
         #TODO Use tranform and rotation to calculate 2D position of light in image
 
-        x = 0
-        y = 0
+        # Create a tf matrix
+        tf_matrix = self.listener.fromTranslationRotation(trans,rot)
 
-        return (x, y)
+        # convert point_in_world to a numpy array
+        pw_np = np.array([[point_in_world.x], [point_in_world.y],[point_in_world.z],[1.0]])
+
+        # Transform to point in camera using the tf_matrix
+        pc_np = np.dot(tf_matrix,pw_np)
+
+        # get x,y and z values from the transformed point
+        x_c = pc_np[0][0]
+        y_c = pc_np[1][0]
+        z_c = pc_np[2][0]
+
+        # Convert to image co-ordinates using image params
+        u = int( -(fx/x_c) * y_c)
+        if (u > image_width):
+            u = image_width
+        v = int( -(fy/x_c)*z_c)
+        if (v > image_height):
+            v = image_height
+
+        return (u, v)
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
