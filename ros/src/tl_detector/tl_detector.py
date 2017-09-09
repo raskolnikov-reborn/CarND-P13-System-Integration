@@ -57,6 +57,7 @@ class TLDetector(object):
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
+        rospy.logwarn("received waypoints")
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -79,7 +80,6 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-        rospy.logwarn("received image")
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -118,6 +118,7 @@ class TLDetector(object):
                 neighbour_index = i
                 neighbour_distance = distance
         
+        rospy.logwarn("index is %d", neighbour_index)
         return neighbour_index
 
 
@@ -140,6 +141,7 @@ class TLDetector(object):
 
         # get transform between pose of camera and world frame
         trans = None
+        rot = None
         try:
             now = rospy.Time.now()
             self.listener.waitForTransform("/base_link",
@@ -149,14 +151,18 @@ class TLDetector(object):
 
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             rospy.logerr("Failed to find camera to map transform")
-
+            
         #TODO Use tranform and rotation to calculate 2D position of light in image
-
         # Create a tf matrix
         tf_matrix = self.listener.fromTranslationRotation(trans,rot)
 
+        if (trans is None) or (rot is None):
+            return (0,0)
+        else:
+            rospy.logwarn("trans and rot are updated")
+
         # convert point_in_world to a numpy array
-        pw_np = np.array([[point_in_world.x], [point_in_world.y],[point_in_world.z],[1.0]])
+        pw_np = np.array([[point_in_world[0]], [point_in_world[1]],[5.0],[1.0]])
 
         # Transform to point in camera using the tf_matrix
         pc_np = np.dot(tf_matrix,pw_np)
@@ -165,6 +171,10 @@ class TLDetector(object):
         x_c = pc_np[0][0]
         y_c = pc_np[1][0]
         z_c = pc_np[2][0]
+
+        rospy.logwarn("Transformed point is (%d,%d,%d)",x_c,y_c,z_c)
+
+        rospy.logwarn("Focal Length is (%f,%f)",fx,fy)
 
         # Convert to image co-ordinates using image params
         u = int( -(fx/x_c) * y_c)
@@ -193,15 +203,17 @@ class TLDetector(object):
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        x, y = self.project_to_image_plane(light.pose.pose.position)
+        #x, y = self.project_to_image_plane(light.pose.pose.position)
+        x, y = self.project_to_image_plane(light)
 
         #TODO use light location to zoom in on traffic light in image
         height_band_pixels = 20
         width_band_pixels = 20
 
         new_image = cv_image[y - height_band_pixels:y + height_band_pixels, x - width_band_pixels:x + width_band_pixels] 
-        original_size = cv_image.shape()
-        cv_image = cv2.resize(new_image,original_size,interpolation = cv2.INTER_CUBIC)
+        ht,wd = new_image.shape[:2]
+        rospy.logwarn("new size is (%d,%d)",wd,ht)
+        cv_image = cv2.resize(new_image,(wd,ht),interpolation = cv2.INTER_CUBIC)
 
         
         #Get classification
@@ -237,9 +249,10 @@ class TLDetector(object):
             if distance < neighbour_distance:
                 neighbour_index = i
                 neighbour_distance = distance
-        
+        rospy.logwarn("light_index = %d",neighbour_index) 
         if neighbour_index is not None:
-            light = neighbour_index
+            light = light_positions[neighbour_index]
+            light_wp = neighbour_index
 
         if light:
             state = self.get_light_state(light)
