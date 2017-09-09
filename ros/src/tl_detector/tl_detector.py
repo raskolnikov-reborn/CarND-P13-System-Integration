@@ -11,7 +11,7 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
-
+import math
 STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
@@ -34,7 +34,7 @@ class TLDetector(object):
         testing your solution in real life so don't rely on it in the final submission.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
+        sub6 = rospy.Subscriber('/camera/image_raw', Image, self.image_cb)
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -79,6 +79,7 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+        rospy.logwarn("received image")
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -101,16 +102,21 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        wp_list = self.waypoints.waypoints
+        if self.waypoints is not None:
+            wp_list = self.waypoints.waypoints
+        else:
+            return None
 		# Create variables for nearest distance and neighbour
         neighbour_index = None
+        neighbour_distance = 100000.0
 
         # Find Neighbour
         for i in range(len(wp_list)):
-			wpi = wp_list[i].pose.pose.position
-			distance = math.sqrt((wpi.x - pose.x)**2 + (wpi.y - pose.y)**2 + (wpi.z - pose.z)**2)
-			if distance < neighbour_distance:
-			    neighbour_index = i
+            wpi = wp_list[i].pose.pose.position
+            distance = math.sqrt((wpi.x - pose.position.x)**2 + (wpi.y - pose.position.y)**2 + (wpi.z - pose.position.z)**2)
+            if distance < neighbour_distance:
+                neighbour_index = i
+                neighbour_distance = distance
         
         return neighbour_index
 
@@ -190,7 +196,14 @@ class TLDetector(object):
         x, y = self.project_to_image_plane(light.pose.pose.position)
 
         #TODO use light location to zoom in on traffic light in image
+        height_band_pixels = 20
+        width_band_pixels = 20
 
+        new_image = cv_image[y - height_band_pixels:y + height_band_pixels, x - width_band_pixels:x + width_band_pixels] 
+        original_size = cv_image.shape()
+        cv_image = cv2.resize(new_image,original_size,interpolation = cv2.INTER_CUBIC)
+
+        
         #Get classification
         return self.light_classifier.get_classification(cv_image)
 
@@ -209,6 +222,24 @@ class TLDetector(object):
             car_position = self.get_closest_waypoint(self.pose.pose)
 
         #TODO find the closest visible traffic light (if one exists)
+
+        neighbour_index = None
+        neighbour_distance = 100000.0
+        if self.waypoints is not None:
+            pose = self.waypoints.waypoints[car_position].pose.pose
+        else:
+            return -1, TrafficLight.UNKNOWN
+
+        for i in range(len(light_positions)):
+            lpi = light_positions[i]
+            # rospy.logwarn(lpi)
+            distance = math.sqrt((lpi[0] - pose.position.x)**2 + (lpi[1] - pose.position.y)**2 )
+            if distance < neighbour_distance:
+                neighbour_index = i
+                neighbour_distance = distance
+        
+        if neighbour_index is not None:
+            light = neighbour_index
 
         if light:
             state = self.get_light_state(light)
