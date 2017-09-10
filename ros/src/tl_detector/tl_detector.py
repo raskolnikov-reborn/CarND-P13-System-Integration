@@ -161,6 +161,8 @@ class TLDetector(object):
         else:
             rospy.logwarn("trans and rot are updated")
 
+
+		# TODO: use matrix form equations for  converting between camer and world co-ordinates
         # convert point_in_world to a numpy array
         pw_np = np.array([[point_in_world[0]], [point_in_world[1]],[5.0],[1.0]])
 
