@@ -2,7 +2,7 @@
 import rospy
 import numpy as np
 from std_msgs.msg import Int32
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Point
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
@@ -22,6 +22,7 @@ class TLDetector(object):
         self.waypoints = None
         self.camera_image = None
         self.lights = []
+        self.tl_waypoints = []
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -39,7 +40,10 @@ class TLDetector(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint',
+                                                      Int32, queue_size=1)
+        self.debug_img_pub = rospy.Publisher('/image_debug_zoomed',
+                                               Image, queue_size=1)
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
@@ -151,38 +155,48 @@ class TLDetector(object):
 
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             rospy.logerr("Failed to find camera to map transform")
+        
+        
+        if (trans is None) or (rot is None):
+            return (image_width/2,image_height/2)
+        else:
+            rospy.logwarn("trans and rot are updated")
             
         #TODO Use tranform and rotation to calculate 2D position of light in image
         # Create a tf matrix
-        tf_matrix = self.listener.fromTranslationRotation(trans,rot)
-
-        if (trans is None) or (rot is None):
-            return (0,0)
-        else:
-            rospy.logwarn("trans and rot are updated")
-
+        tf_matrix = self.listener.fromTranslationRotation(trans,rot) 
 
 		# TODO: use matrix form equations for  converting between camer and world co-ordinates
         # convert point_in_world to a numpy array
         pw_np = np.array([[point_in_world[0]], [point_in_world[1]],[5.0],[1.0]])
+        
+        rospy.logwarn("point in world is %s ", pw_np)
+
 
         # Transform to point in camera using the tf_matrix
         pc_np = np.dot(tf_matrix,pw_np)
 
         # get x,y and z values from the transformed point
-        x_c = pc_np[0][0]
-        y_c = pc_np[1][0]
-        z_c = pc_np[2][0]
+        x_c = pc_np[1][0]
+        y_c = pc_np[2][0]
+        z_c = pc_np[0][0]
 
-        rospy.logwarn("Transformed point is (%d,%d,%d)",x_c,y_c,z_c)
+        rospy.logwarn("Transformed point is (%f,%f,%f)",x_c,y_c,z_c)
 
         rospy.logwarn("Focal Length is (%f,%f)",fx,fy)
 
         # Convert to image co-ordinates using image params
-        u = int( -(fx/x_c) * y_c)
+        u = ( -(fx/z_c) * y_c)
+        v = ( -(fy/z_c) * x_c)
+        
+        rospy.logwarn("U,V : (%f,%f)", u,v)
+
+        u = int(image_width*(0.5 + u))
+        v = int(image_height*(0.5 + v))
+        
         if (u > image_width):
             u = image_width
-        v = int( -(fy/x_c)*z_c)
+ 
         if (v > image_height):
             v = image_height
 
@@ -206,16 +220,27 @@ class TLDetector(object):
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
         #x, y = self.project_to_image_plane(light.pose.pose.position)
-        x, y = self.project_to_image_plane(light)
+        xc1, yc1 = self.project_to_image_plane(light)
 
         #TODO use light location to zoom in on traffic light in image
-        height_band_pixels = 20
-        width_band_pixels = 20
+        
+        tl_dimensions = [5,-10] # in meters
+        light_corner2 = [ light[0]+tl_dimensions[0], light[1]+tl_dimensions[1]]
 
-        new_image = cv_image[y - height_band_pixels:y + height_band_pixels, x - width_band_pixels:x + width_band_pixels] 
+        rospy.logwarn("Light corner in World: %s",light_corner2)
+
+        xc2,yc2 = self.project_to_image_plane(light_corner2)
+        rospy.logwarn(" Light Bounding Box : (%d,%d):(%d,%d)", xc1,yc1,xc2,yc2)
+
+        new_image = cv_image[yc1:yc1+90, xc1-50:xc1]
+        #new_image = cv_image[yc1:yc2, xc2:xc1] 
+
         ht,wd = new_image.shape[:2]
         rospy.logwarn("new size is (%d,%d)",wd,ht)
         cv_image = cv2.resize(new_image,(wd,ht),interpolation = cv2.INTER_CUBIC)
+
+        img_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
+        self.debug_img_pub.publish(img_msg)
 
         
         #Get classification
@@ -251,6 +276,8 @@ class TLDetector(object):
             if distance < neighbour_distance:
                 neighbour_index = i
                 neighbour_distance = distance
+
+        
         rospy.logwarn("light_index = %d",neighbour_index) 
         if neighbour_index is not None:
             light = light_positions[neighbour_index]
