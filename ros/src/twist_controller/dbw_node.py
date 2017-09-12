@@ -55,10 +55,10 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # Create all subscribers
-        rospy.Subscriber('/current_velocity', TwistStamped, self.cv_cb)
-        rospy.Subscriber('/twist_cmd', TwistStamped, self.tc_cb)
-        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_cb)
-        rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.st_report_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.cv_cb, queue_size=1)
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.tc_cb, queue_size=1)
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_cb, queue_size=1)
+        rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.st_report_cb, queue_size=1)
 
         self.dbw_enabled = False
 

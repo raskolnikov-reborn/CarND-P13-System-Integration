@@ -26,8 +26,8 @@ class TLDetector(object):
         self.lights = []
         self.tl_waypoints = []
 
-        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
 
         '''
         /vehicle/traffic_lights helps you acquire an accurate ground truth data source for the traffic light
@@ -37,7 +37,7 @@ class TLDetector(object):
         testing your solution in real life so don't rely on it in the final submission.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
-        sub6 = rospy.Subscriber('/camera/image_raw', Image, self.image_cb)
+        sub6 = rospy.Subscriber('/camera/image_raw', Image, self.image_cb, queue_size=1)
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -63,7 +63,7 @@ class TLDetector(object):
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
-        rospy.logwarn("received waypoints")
+        rospy.loginfo("received waypoints")
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -125,7 +125,6 @@ class TLDetector(object):
                 neighbour_index = i
                 neighbour_distance = distance
 
-        rospy.logwarn("index is %d", neighbour_index)
         return neighbour_index
 
     def project_to_image_plane(self, point_in_world):
@@ -184,14 +183,14 @@ class TLDetector(object):
         rospy.logwarn("Transformed point is (%f,%f,%f)", x_c, y_c, z_c)
 
         # Convert to image co-ordinates using image params
-        mu = 1000
-        mv = 1000
+        mu = 800
+        mv = 600
         u = int(-(fx / z_c) * x_c * mu)
         v = int(-(fy / z_c) * y_c * mv)
 
         # Translation to top left origin
-        u += image_width/2
-        v = image_height/2 - v
+        u += image_width/2 - 140
+        v = image_height/2 - v + 55
 
         rospy.logwarn("U,V : (%d,%d)", u, v)
 
@@ -221,9 +220,9 @@ class TLDetector(object):
 
         light2 = light
 
-        light2.y += 4.0
+        light2.y += 2.0
 
-        light2.z += 8.0
+        light2.z += 1.0
 
         x_corner, y_corner = self.project_to_image_plane(light2)
 
@@ -234,7 +233,7 @@ class TLDetector(object):
         box_half_height = abs(y_corner - y_center)
 
         # Find top left corner
-        tl_x = max(0, x_center)
+        tl_x = max(0, x_center - box_half_width)
         tl_y = max(0, y_center - box_half_height)
 
         # Find Bottom Right corner
@@ -291,15 +290,15 @@ class TLDetector(object):
                 neighbour_index = i
                 neighbour_distance = distance
 
-        rospy.logwarn("light_index = %d", neighbour_index)
         light_wp = None
         if neighbour_index is not None:
             light = self.lights[neighbour_index].pose.pose.position
             light_wp = neighbour_index
 
         if light:
-            state = self.get_light_state(light)
-            # state = self.get_light_state_from_list(light_wp)
+            # state = self.get_light_state(light)
+            state = self.get_light_state_from_list(light_wp)
+            rospy.loginfo("Traffic light %d state is %d", light_wp, state)
             return light_wp, state
         # self.waypoints = None
         return -1, TrafficLight.UNKNOWN
