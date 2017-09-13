@@ -108,21 +108,27 @@ class WaypointUpdater ( object ):
                         closest_distance = distance
 
                 # If not behind
-                if closest_wp != 0:
+                if closest_wp > 0:
                     braking_waypoints = 20
-                    braking_clearance = 10
+                    braking_clearance = 22
 
-                    rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
+                    # rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
 
-                    braking_start_wp = max ( 0, closest_wp - braking_waypoints - braking_clearance )
-                    braking_end_wp = max ( 0, closest_wp - braking_clearance )
+                    braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
+                    braking_end_wp = max( 0, closest_wp - braking_clearance )
+
+                    braking_waypoints = max(1, braking_end_wp - braking_start_wp)
 
                     deceleration = lane.waypoints[braking_start_wp].twist.twist.linear.x / braking_waypoints
-                    rospy.logwarn("Deceleration is %f", deceleration)
+                    # rospy.logwarn("Deceleration is %f , Brake Start and end points are (%d,%d)", deceleration, braking_start_wp, braking_end_wp)
 
-                    for i in range ( len(lane.waypoints)):
-                        lane.waypoints[i].twist.twist.linear.x = 0
-                        # lane.waypoints[i].twist.twist.linear.x = max(0,lane.waypoints[i].twist.twist.linear.x)
+                    for i in range ( braking_start_wp, LOOKAHEAD_WPS):
+                        dec_step = i - braking_start_wp
+                        # lane.waypoints[i].twist.twist.linear.x -= dec_step*deceleration
+                        lane.waypoints[i].twist.twist.linear.x  = 0.0
+                        lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x)
+
+                        # rospy.logwarn("waypoint_index %d velocity is %f", i, lane.waypoints[i].twist.twist.linear.x)
 
             self.final_waypoints_pub.publish ( lane )
 

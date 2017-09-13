@@ -60,6 +60,7 @@ class DBWNode(object):
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_cb, queue_size=1)
         rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.st_report_cb, queue_size=1)
 
+        self.throttle_deadband = 0.1
         self.dbw_enabled = False
 
 
@@ -120,7 +121,11 @@ class DBWNode(object):
     def publish(self, throttle, brake, steer):
 
         # Throttle Deadzone
+        # Prevent any untoward motion due to PID oscillations about zero
         if throttle > 0.001:
+            if throttle < self.throttle_deadband:
+                throttle = 0.0
+                brake = 100000
             tcmd = ThrottleCmd()
             tcmd.enable = True
             tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
