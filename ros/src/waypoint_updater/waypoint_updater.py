@@ -107,12 +107,14 @@ class WaypointUpdater ( object ):
                         closest_wp = i
                         closest_distance = distance
 
+                braking_tolerance = 5
+                # rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
+
                 # If not behind
-                if closest_wp > 0:
+                if closest_wp > braking_tolerance:
                     braking_waypoints = 20
                     braking_clearance = 22
 
-                    # rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
 
                     braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
                     braking_end_wp = max( 0, closest_wp - braking_clearance )
