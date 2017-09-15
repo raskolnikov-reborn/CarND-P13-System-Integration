@@ -107,13 +107,22 @@ class WaypointUpdater ( object ):
                         closest_wp = i
                         closest_distance = distance
 
-                braking_tolerance = 5
+                braking_tolerance = 10
                 # rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
 
-                # If not behind
-                if closest_wp > braking_tolerance:
-                    braking_waypoints = 20
-                    braking_clearance = 22
+                # Get Distance between waypoints closest to Car and Light
+                distance = self.distance(lane.waypoints, 0, closest_wp)
+
+                # If not behind and not crossed already
+
+                crossed_light = False
+                if distance < 25.0:
+                    crossed_light = True
+
+
+                if closest_wp > 0 and crossed_light is False:
+                    braking_waypoints = 40
+                    braking_clearance = 5
 
 
                     braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )

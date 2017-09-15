@@ -122,10 +122,11 @@ class DBWNode(object):
 
         # Throttle Deadzone
         # Prevent any untoward motion due to PID oscillations about zero
+        if throttle < self.throttle_deadband:
+            throttle = 0.0
+            brake = 100000
+
         if throttle > 0.001:
-            if throttle < self.throttle_deadband:
-                throttle = 0.0
-                brake = 100000
             tcmd = ThrottleCmd()
             tcmd.enable = True
             tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
