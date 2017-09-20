@@ -134,16 +134,13 @@ class WaypointUpdater ( object ):
                 min_braking_distance += 20.0
 
                 braking_waypoints = 0
-                # Find num of waypoints that are needed to travel that distance
+                # Find num of waypoints on the current path that are needed to travel that distance
                 for i in range (len(lane.waypoints)):
                     if self.distance (lane.waypoints, 0, i) > min_braking_distance:
                         braking_waypoints = i
                         break
 
-
-
-
-                if closest_wp > 0 and crossed_light is False:
+                if closest_wp > 0 and closest_wp < 70 and crossed_light is False:
                     # safety buffer
                     braking_clearance = 5
 

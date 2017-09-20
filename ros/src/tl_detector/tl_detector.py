@@ -63,7 +63,6 @@ class TLDetector(object):
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
-        rospy.loginfo("received waypoints")
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
