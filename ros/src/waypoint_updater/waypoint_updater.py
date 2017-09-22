@@ -139,11 +139,17 @@ class WaypointUpdater ( object ):
                         crossed_light = True
 
 
+                    # define a max permissible deceleration for comfort
+                    max_permissible_deceleration = 2.0
 
-                    # Find Min Deceleration Distance
-                    min_braking_distance = (self.current_velocity**2)/(2*5.0)
+                    # define a min deceleration to avoid local minima
+                    min_safety_deceleration = 0.5
 
-                    # add a safety distance buffer
+                    # Find Min Deceleration Distance using v2 = u2 + 2as
+                    min_braking_distance = (self.current_velocity**2)/(2*max_permissible_deceleration)
+
+                    # add the distance between the traffic light and the stop line (since we want to stop before the
+                    # latter)
                     min_braking_distance += light_to_line_dist
 
                     braking_waypoints = 0
@@ -153,19 +159,16 @@ class WaypointUpdater ( object ):
                             braking_waypoints = i
                             break
 
-                    if closest_wp > 0 and closest_wp < 70 and crossed_light is False:
+                    if min_braking_distance < 100 and crossed_light is False:
                         # safety buffer
                         braking_clearance = 5
-
-                        rospy.logwarn(" Car can stop at waypoint no. %d", braking_waypoints)
-
                         braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
-                        braking_end_wp = max( 0, closest_wp - braking_clearance )
 
-                        braking_waypoints = max(1, braking_end_wp - braking_start_wp)
+                        deceleration = max(min_safety_deceleration, self.current_velocity/(braking_waypoints * 1))
 
                         for i in range ( braking_start_wp, LOOKAHEAD_WPS):
-                            lane.waypoints[i].twist.twist.linear.x  = 0.0
+                            dec_step = i - braking_start_wp + 1
+                            lane.waypoints[i].twist.twist.linear.x  = self.current_velocity - (deceleration * dec_step)
                             lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x)
 
             self.final_waypoints_pub.publish ( lane )
