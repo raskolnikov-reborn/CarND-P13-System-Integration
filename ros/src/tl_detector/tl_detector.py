@@ -12,6 +12,7 @@ import tf
 import cv2
 import yaml
 import math
+import os
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -55,6 +56,9 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+
+        # data generator file count index
+        self.file_index = 0
 
         rospy.spin()
 
@@ -257,6 +261,82 @@ class TLDetector(object):
     def get_light_state_from_list(self, light_index):
         return self.lights[light_index].state
 
+    def generate_training_data(self, light, state, zoom=True):
+
+        # Setup
+        data_folder = "../../../sim_training_data"
+
+        # Check if this is the first loop
+        if self.file_index == 0:
+
+            # Check to see if there's a folder for containing the data
+            if os.path.isdir(data_folder):
+                
+                # If there is, check and see if any training images are saved in it
+                training_files = os.listdir(data_folder)
+                if len(training_files) > 0:
+                    training_files.sort()
+                    last_training_file = training_files[-1]
+                    try:
+                        last_index = int(last_training_file.split("_")[1])
+                        self.file_index = last_index+1
+                    except:
+                        raise ValueError("Couldn't understand the naming convention of {}, was it created by the data generator?".format(last_training_file))
+            else:
+                os.makedirs(data_folder)
+
+    try:
+
+        # get image
+        self.camera_image.encoding = "rgb8"
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+
+        # Zoom in on the light (this is copy pasted from get_light_state())
+        if zoom:
+            # x, y = self.project_to_image_plane(light.pose.pose.position)
+            x_center, y_center = self.project_to_image_plane(light)
+
+	        # use light location to zoom in on traffic light in image
+
+	        light2 = light
+
+	        light2.y += 2.0
+
+	        light2.z += 1.0
+
+	        x_corner, y_corner = self.project_to_image_plane(light2)
+
+	        image_width = self.config['camera_info']['image_width']
+	        image_height = self.config['camera_info']['image_height']
+
+	        box_half_width = abs(x_corner - x_center)
+	        box_half_height = abs(y_corner - y_center)
+
+	        # Find top left corner
+	        tl_x = max(0, x_center - box_half_width)
+	        tl_y = max(0, y_center - box_half_height)
+
+	        # Find Bottom Right corner
+	        br_x = min(x_center + box_half_width, image_width - 1)
+	        br_y = min(y_center + box_half_height, image_height - 1)
+
+	        # new_image = cv_image[yc1:yc1+90, xc1-50:xc1]
+	        new_image = cv_image[tl_y:br_y, tl_x:br_x]
+
+	        ht, wd = new_image.shape[:2]
+	        cv_image = cv2.resize(new_image, (wd, ht), interpolation=cv2.INTER_CUBIC)
+
+        # Save a training image and update the file count index
+        filename = "{0}/img_{1}_state_{2}.jpg".format(data_folder, self.file_index, state)
+        cv2.imwrite(filename, cv_image)
+        self.file_index += 1
+        rospy.logwarn("Took a traffic light training image")
+
+    except:
+    	
+    	rospy.logwarn("No lights in range")
+
+
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -297,6 +377,7 @@ class TLDetector(object):
         if light:
             # state = self.get_light_state(light)
             state = self.get_light_state_from_list(light_wp)
+            self.generate_training_data(light, state)
             return light_wp, state
         # self.waypoints = None
         return -1, TrafficLight.UNKNOWN
