@@ -276,7 +276,9 @@ class TLDetector(object):
                 training_files = os.listdir(data_folder)
                 if len(training_files) > 0:
                     training_files.sort()
+                    training_files.sort(key=len)
                     last_training_file = training_files[-1]
+                    rospy.logwarn("The last file was {}".format(last_training_file))
                     try:
                         last_index = int(last_training_file.split("_")[1])
                         self.file_index = last_index+1
@@ -285,56 +287,56 @@ class TLDetector(object):
             else:
                 os.makedirs(data_folder)
 
-    try:
+        try:
 
-        # get image
-        self.camera_image.encoding = "rgb8"
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+            # get image
+            self.camera_image.encoding = "rgb8"
+            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        # Zoom in on the light (this is copy pasted from get_light_state())
-        if zoom:
-            # x, y = self.project_to_image_plane(light.pose.pose.position)
-            x_center, y_center = self.project_to_image_plane(light)
+            # Zoom in on the light (this is copy pasted from get_light_state())
+            if zoom:
+                # x, y = self.project_to_image_plane(light.pose.pose.position)
+                x_center, y_center = self.project_to_image_plane(light)
 
-	        # use light location to zoom in on traffic light in image
+                # use light location to zoom in on traffic light in image
 
-	        light2 = light
+                light2 = light
 
-	        light2.y += 2.0
+                light2.y += 2.0
 
-	        light2.z += 1.0
+                light2.z += 1.0
 
-	        x_corner, y_corner = self.project_to_image_plane(light2)
+                x_corner, y_corner = self.project_to_image_plane(light2)
 
-	        image_width = self.config['camera_info']['image_width']
-	        image_height = self.config['camera_info']['image_height']
+                image_width = self.config['camera_info']['image_width']
+                image_height = self.config['camera_info']['image_height']
 
-	        box_half_width = abs(x_corner - x_center)
-	        box_half_height = abs(y_corner - y_center)
+                box_half_width = abs(x_corner - x_center)
+                box_half_height = abs(y_corner - y_center)
 
-	        # Find top left corner
-	        tl_x = max(0, x_center - box_half_width)
-	        tl_y = max(0, y_center - box_half_height)
+                # Find top left corner
+                tl_x = max(0, x_center - box_half_width)
+                tl_y = max(0, y_center - box_half_height)
 
-	        # Find Bottom Right corner
-	        br_x = min(x_center + box_half_width, image_width - 1)
-	        br_y = min(y_center + box_half_height, image_height - 1)
+                # Find Bottom Right corner
+                br_x = min(x_center + box_half_width, image_width - 1)
+                br_y = min(y_center + box_half_height, image_height - 1)
 
-	        # new_image = cv_image[yc1:yc1+90, xc1-50:xc1]
-	        new_image = cv_image[tl_y:br_y, tl_x:br_x]
+                # new_image = cv_image[yc1:yc1+90, xc1-50:xc1]
+                new_image = cv_image[tl_y:br_y, tl_x:br_x]
 
-	        ht, wd = new_image.shape[:2]
-	        cv_image = cv2.resize(new_image, (wd, ht), interpolation=cv2.INTER_CUBIC)
+                ht, wd = new_image.shape[:2]
+                cv_image = cv2.resize(new_image, (wd, ht), interpolation=cv2.INTER_CUBIC)
 
-        # Save a training image and update the file count index
-        filename = "{0}/img_{1}_state_{2}.jpg".format(data_folder, self.file_index, state)
-        cv2.imwrite(filename, cv_image)
-        self.file_index += 1
-        rospy.logwarn("Took a traffic light training image")
+            # Save a training image and update the file count index
+            filename = "{0}/img_{1}_state_{2}.jpg".format(data_folder, self.file_index, state)
+            cv2.imwrite(filename, cv_image)
+            self.file_index += 1
+            rospy.logwarn("Took a traffic light training image")
 
-    except:
-    	
-    	rospy.logwarn("No lights in range")
+        except:
+            
+            rospy.logwarn("No lights in range")
 
 
     def process_traffic_lights(self):
@@ -377,7 +379,7 @@ class TLDetector(object):
         if light:
             # state = self.get_light_state(light)
             state = self.get_light_state_from_list(light_wp)
-            self.generate_training_data(light, state)
+            self.generate_training_data(light, state, zoom=False)
             return light_wp, state
         # self.waypoints = None
         return -1, TrafficLight.UNKNOWN
