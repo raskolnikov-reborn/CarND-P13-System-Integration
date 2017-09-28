@@ -59,6 +59,9 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        self.prev_light_loc = None
+
+        self.gen_train_data = True
 
         # data generator file count index
         self.file_index = 0
@@ -172,39 +175,34 @@ class TLDetector(object):
         if (trans is None) or (rot is None):
             return (image_width / 2, image_height / 2)
 
-        # TODO Use tranform and rotation to calculate 2D position of light in image
         # Create a tf matrix
         tf_matrix = self.listener.fromTranslationRotation(trans, rot)
 
-        # TODO: use matrix form equations for  converting between camer and world co-ordinates
         # convert point_in_world to a numpy array
         pw_np = np.array([[point_in_world.x], [point_in_world.y], [point_in_world.z], [1.0]])
-
-        # rospy.logwarn("point in world is %s ", pw_np)
 
         # Transform to point in camera using the tf_matrix
         pc_np = np.dot(tf_matrix, pw_np)
 
-        # get x,y and z values from the transformed point
-        x_c = pc_np[2][0]
-        y_c = pc_np[1][0]
-        z_c = pc_np[0][0]
 
-        # rospy.logwarn("Transformed point is (%f,%f,%f)", x_c, y_c, z_c)
+        # get x,y and z values from the transformed point
+        x_c = pc_np[2]
+        y_c = pc_np[1]
+        z_c = pc_np[0]
 
         # Convert to image co-ordinates using image params
         if fx < 10.0:
-            fx = 2544
-            fy = 2744
+            fx = 2744
+            fy = 2944
             cx = image_width / 2 - 30
-            cy = image_height + 120
+            cy = image_height + 140
 
         u = int(-(fx / z_c) * y_c)
         v = int(-(fy / z_c) * x_c)
 
         # Translation to top left origin
-        u = int(u + cx)
-        v = int(v + cy)
+        u = min(image_width, int(u + cx))
+        v = min(image_height, int(v + cy))
 
         return (u, v)
 
@@ -212,84 +210,106 @@ class TLDetector(object):
 
         neighbour_distance = 1000000.0
         neighbour_index = 0
+        curr_pose = self.pose.pose.position
+        orientation = self.pose.pose.orientation
         for i in range(len(self.stop_line_positions)):
             light_pose = self.stop_line_positions[i]
-            curr_pose = self.pose.pose.position
             distance = math.sqrt(
                 (light_pose[0] - curr_pose.x) ** 2 + (light_pose[1] - curr_pose.y) ** 2)
             if distance < neighbour_distance:
                 neighbour_distance = distance
                 neighbour_index = i
+
+        # Check if neighbour is ahead or behind
+        quat_np = (orientation.x, orientation.y, orientation.z, orientation.w)
+        rpy = tf.transformations.euler_from_quaternion(quat_np)
+        yaw = rpy[2]
+
+        # Project a unit vector along orientation
+        proj_distance = 1.0
+        v1 = (proj_distance*math.cos(yaw), proj_distance*math.sin(yaw))
+        v2 = (self.stop_line_positions[neighbour_index][0] - curr_pose.x, self.stop_line_positions[neighbour_index][1] - curr_pose.y)
+
+        dot = np.dot(v1,v2)
+
+        if dot < 0:
+            neighbour_distance = -1
+
         return neighbour_distance
 
-    def get_light_state(self, light):
+    def get_light_state(self, light_wp):
         """Determines the current color of the traffic light
 
         Args:
-            light (TrafficLight): light to classify
+            light_wp (TrafficLight): index of light to classify
 
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        if (not self.has_image):
+        light = self.lights[light_wp].pose.pose.position
+        if not self.has_image:
             self.prev_light_loc = None
             return TrafficLight.UNKNOWN
 
         distance_to_light = self.dist_to_closest_stop_line()
 
-        if ( 30 > distance_to_light > 5) is False:
+        if not (0 < distance_to_light < 35):
             return TrafficLight.UNKNOWN
 
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        # x, y = self.project_to_image_plane(light.pose.pose.position)
-        x_center, y_center = self.project_to_image_plane(light)
+        # Zooming etc is only needed when we need to generate training data
+        if self.gen_train_data:
+            # Use TL position from the message to figure out center in the image plane
+            x_center, y_center = self.project_to_image_plane(light)
 
-        # TODO use light location to zoom in on traffic light in image
+            # TODO use light location to zoom in on traffic light in image
 
-        light2 = light
+            # Create a second light point which is 0.5 * (tl_width, tl_height ) away from the center
+            # Add padding to have a slightly bigger bounding box
+            # it should conceptually be fine for the deep learning pipeline as
+            # The Neural Network should be able to extract away the
+            light2 = light
+            light2.y += 0.6  # width + padding
+            light2.z += 1.1  # height + padding
 
-        light2.y += 0.75
+            # Project the corner to the image plane as well
+            x_corner, y_corner = self.project_to_image_plane(light2)
 
-        light2.z += 1.25
+            # Get image parameters in the local variables so that bounding boxes can be capped by image dimensions
+            image_width = self.config['camera_info']['image_width']
+            image_height = self.config['camera_info']['image_height']
 
-        x_corner, y_corner = self.project_to_image_plane(light2)
+            # Figure out box half and full heights
+            box_half_width = abs(x_corner - x_center)
+            box_half_height = abs(y_corner - y_center)
 
-        image_width = self.config['camera_info']['image_width']
-        image_height = self.config['camera_info']['image_height']
+            # Find top left corner
+            tl_x = max(0, x_center - box_half_width)
+            tl_y = max(0, y_center - box_half_height)
 
-        box_half_width = abs(x_corner - x_center)
-        box_half_height = abs(y_corner - y_center)
+            # Find Bottom Right corner
+            br_x = min(x_center + box_half_width, image_width - 1)
+            br_y = min(y_center + box_half_height, image_height - 1)
 
-        # Find top left corner
-        tl_x = max(0, x_center - box_half_width)
-        tl_y = max(0, y_center - box_half_height)
+            # Image for debug_msgs
+            new_image = cv_image
+            # Draw the estimated bounding box
+            cv2.rectangle(new_image, (tl_x, tl_y), (br_x, br_y), (0, 255, 0), 4)
 
-        # Find Bottom Right corner
-        br_x = min(x_center + box_half_width, image_width - 1)
-        br_y = min(y_center + box_half_height, image_height - 1)
+            # create the message from the debug image
+            img_msg = self.bridge.cv2_to_imgmsg(new_image, encoding='bgr8')
 
-        rospy.logwarn(" Light Bounding Box : (%d,%d):(%d,%d)", tl_x, tl_y, br_x, br_y)
+            # publish the output
+            self.debug_img_pub.publish(img_msg)
 
-        # new_image = cv_image[yc1:yc1+90, xc1-50:xc1]
-        # new_image = cv_image[tl_y:br_y, tl_x:br_x]
-        new_image = cv_image
-        cv2.rectangle(new_image, (tl_x, tl_y), (br_x, br_y), (0, 255, 0), 4)
-
-        ht, wd = new_image.shape[:2]
-        # rospy.logwarn("new size is (%d,%d)", wd, ht)
-        if wd > 0 and ht > 0:
-            cv_image = cv2.resize(new_image, (800, 600), interpolation=cv2.INTER_CUBIC)
+            # return Ground truth to be published on the message
+            return self.lights[light_wp].state
         else:
-            return -1
-
-        img_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
-        self.debug_img_pub.publish(img_msg)
-
-        # Get classification
-        return self.light_classifier.get_classification(cv_image)
+            # Get classification TODO: use classifier
+            return self.light_classifier.get_classification(cv_image)
 
     def get_light_state_from_list(self, light_index):
         return self.lights[light_index].state
@@ -411,7 +431,7 @@ class TLDetector(object):
             light_wp = neighbour_index
 
         if light:
-            state = self.get_light_state(light)
+            state = self.get_light_state(light_wp)
             # state = self.get_light_state_from_list(light_wp)
             # self.generate_training_data(light, state, zoom=False)
             return light_wp, state
