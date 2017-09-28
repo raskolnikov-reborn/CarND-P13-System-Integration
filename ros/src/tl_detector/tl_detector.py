@@ -63,6 +63,7 @@ class TLDetector(object):
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
+        rospy.loginfo("received waypoints")
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -267,7 +268,7 @@ class TLDetector(object):
 
         """
         light = None
-        light_positions = self.config['stop_line_positions']
+        light_positions = self.config['light_positions']
         if (self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
 

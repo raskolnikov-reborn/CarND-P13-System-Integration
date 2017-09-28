@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
 import rospy
-from geometry_msgs.msg import PoseStamped, TwistStamped
+from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 import math
-import yaml
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -31,8 +30,6 @@ class WaypointUpdater ( object ):
         rospy.init_node ( 'waypoint_updater' )
 
         rospy.Subscriber ( '/current_pose', PoseStamped, self.pose_cb, queue_size=1 )
-
-        rospy.Subscriber('/current_velocity', TwistStamped, self.vel_cb, queue_size=1)
         rospy.Subscriber ( '/base_waypoints', Lane, self.waypoints_cb, queue_size=1 )
 
         # Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
@@ -44,15 +41,8 @@ class WaypointUpdater ( object ):
 
         self.final_waypoints_pub = rospy.Publisher ( 'final_waypoints', Lane, queue_size=1 )
 
-
-        config_string = rospy.get_param("/traffic_light_config")
-        self.config = yaml.load(config_string)
-        self.stop_line_positions = self.config['stop_line_positions']
-
         # TODO: Add other member variables you need below
         self.lights = []
-
-        self.traffic_light_behaviour = False
 
         # Run the iterations at 10 Hz
         rate = rospy.Rate ( 10 )
@@ -62,7 +52,7 @@ class WaypointUpdater ( object ):
 
     def iterate(self):
         # If the base waypoints and the current pose have been received
-        if hasattr ( self, 'base_waypoints' ) and hasattr ( self, 'current_pose' ) and hasattr(self, 'current_velocity'):
+        if hasattr ( self, 'base_waypoints' ) and hasattr ( self, 'current_pose' ):
             # Create a Standard Lane Message
             lane = Lane ()
             # Set its frame and Timestamp
@@ -101,10 +91,7 @@ class WaypointUpdater ( object ):
             # Check traffic light status
             if hasattr(self,'traffic_waypoint'):
                 if self.traffic_waypoint != -1:
-                    self.traffic_light_behaviour = True
                     light = self.lights[self.traffic_waypoint]
-                else:
-                    self.traffic_light_behaviour = False
 
             # if red light is coming up, find the waypoint closest to it from the base waypoints
             if light:
@@ -120,56 +107,28 @@ class WaypointUpdater ( object ):
                         closest_wp = i
                         closest_distance = distance
 
-                braking_tolerance = 10
-                # rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
+                # If not behind
+                if closest_wp > 0:
+                    braking_waypoints = 20
+                    braking_clearance = 22
 
-                # Get Distance between waypoints closest to Car and Light
-                distance = self.distance(lane.waypoints, 0, closest_wp)
+                    # rospy.logwarn(" closest waypoint is %d , %f meters away", closest_wp, closest_distance)
 
-                # find distance between stop line and traffic light
-                if light:
-                    light_pose = light.pose.pose.position
-                    stop_line = self.stop_line_positions[self.traffic_waypoint]
-                    light_to_line_dist = math.sqrt(
-                        (light_pose.x - stop_line[0]) ** 2 + (light_pose.y - stop_line[1]) ** 2)
+                    braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
+                    braking_end_wp = max( 0, closest_wp - braking_clearance )
 
-                    # If not behind and not crossed already
-                    crossed_light = False
-                    if distance < light_to_line_dist:
-                        crossed_light = True
+                    braking_waypoints = max(1, braking_end_wp - braking_start_wp)
 
+                    deceleration = lane.waypoints[braking_start_wp].twist.twist.linear.x / braking_waypoints
+                    # rospy.logwarn("Deceleration is %f , Brake Start and end points are (%d,%d)", deceleration, braking_start_wp, braking_end_wp)
 
-                    # define a max permissible deceleration for comfort
-                    max_permissible_deceleration = 2.0
+                    for i in range ( braking_start_wp, LOOKAHEAD_WPS):
+                        dec_step = i - braking_start_wp
+                        # lane.waypoints[i].twist.twist.linear.x -= dec_step*deceleration
+                        lane.waypoints[i].twist.twist.linear.x  = 0.0
+                        lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x)
 
-                    # define a min deceleration to avoid local minima
-                    min_safety_deceleration = 0.5
-
-                    # Find Min Deceleration Distance using v2 = u2 + 2as
-                    min_braking_distance = (self.current_velocity**2)/(2*max_permissible_deceleration)
-
-                    # add the distance between the traffic light and the stop line (since we want to stop before the
-                    # latter)
-                    min_braking_distance += light_to_line_dist
-
-                    braking_waypoints = 0
-                    # Find num of waypoints on the current path that are needed to travel that distance
-                    for i in range (len(lane.waypoints)):
-                        if self.distance (lane.waypoints, 0, i) > min_braking_distance:
-                            braking_waypoints = i
-                            break
-
-                    if min_braking_distance < 100 and crossed_light is False:
-                        # safety buffer
-                        braking_clearance = 5
-                        braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
-
-                        deceleration = max(min_safety_deceleration, self.current_velocity/(braking_waypoints * 1))
-
-                        for i in range ( braking_start_wp, LOOKAHEAD_WPS):
-                            dec_step = i - braking_start_wp + 1
-                            lane.waypoints[i].twist.twist.linear.x  = self.current_velocity - (deceleration * dec_step)
-                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x)
+                        # rospy.logwarn("waypoint_index %d velocity is %f", i, lane.waypoints[i].twist.twist.linear.x)
 
             self.final_waypoints_pub.publish ( lane )
 
@@ -180,8 +139,7 @@ class WaypointUpdater ( object ):
         pass
 
     def waypoints_cb(self, waypoints):
-        if self.traffic_light_behaviour is False:
-            self.base_waypoints = waypoints
+        self.base_waypoints = waypoints
         pass
 
     def traffic_cb(self, msg):
@@ -208,9 +166,6 @@ class WaypointUpdater ( object ):
 
     def tla_cb(self, msg):
         self.lights = msg.lights
-
-    def vel_cb(self, msg):
-        self.current_velocity = msg.twist.linear.x
 
 
 if __name__ == '__main__':
