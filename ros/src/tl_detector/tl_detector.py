@@ -26,6 +26,7 @@ class TLDetector(object):
         self.camera_image = None
         self.lights = []
         self.tl_waypoints = []
+        self.has_image = False
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
@@ -47,6 +48,8 @@ class TLDetector(object):
                                                       Int32, queue_size=1)
         self.debug_img_pub = rospy.Publisher('/image_debug_zoomed',
                                              Image, queue_size=1)
+
+        self.stop_line_positions = self.config['stop_line_positions']
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
@@ -147,6 +150,11 @@ class TLDetector(object):
         image_width = self.config['camera_info']['image_width']
         image_height = self.config['camera_info']['image_height']
 
+        # Center of the image
+        # To be changed in simulator to compensate
+        cx = image_width / 2
+        cy = image_height / 2
+
         # get transform between pose of camera and world frame
         trans = None
         rot = None
@@ -174,7 +182,6 @@ class TLDetector(object):
 
         # rospy.logwarn("point in world is %s ", pw_np)
 
-
         # Transform to point in camera using the tf_matrix
         pc_np = np.dot(tf_matrix, pw_np)
 
@@ -183,21 +190,37 @@ class TLDetector(object):
         y_c = pc_np[1][0]
         z_c = pc_np[0][0]
 
-        rospy.logwarn("Transformed point is (%f,%f,%f)", x_c, y_c, z_c)
+        # rospy.logwarn("Transformed point is (%f,%f,%f)", x_c, y_c, z_c)
 
         # Convert to image co-ordinates using image params
-        mu = 800
-        mv = 600
-        u = int(-(fx / z_c) * x_c * mu)
-        v = int(-(fy / z_c) * y_c * mv)
+        if fx < 10.0:
+            fx = 2544
+            fy = 2744
+            cx = image_width / 2 - 30
+            cy = image_height + 120
+
+        u = int(-(fx / z_c) * y_c)
+        v = int(-(fy / z_c) * x_c)
 
         # Translation to top left origin
-        u += image_width/2 - 140
-        v = image_height/2 - v + 55
-
-        rospy.logwarn("U,V : (%d,%d)", u, v)
+        u = int(u + cx)
+        v = int(v + cy)
 
         return (u, v)
+
+    def dist_to_closest_stop_line(self):
+
+        neighbour_distance = 1000000.0
+        neighbour_index = 0
+        for i in range(len(self.stop_line_positions)):
+            light_pose = self.stop_line_positions[i]
+            curr_pose = self.pose.pose.position
+            distance = math.sqrt(
+                (light_pose[0] - curr_pose.x) ** 2 + (light_pose[1] - curr_pose.y) ** 2)
+            if distance < neighbour_distance:
+                neighbour_distance = distance
+                neighbour_index = i
+        return neighbour_distance
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -211,7 +234,12 @@ class TLDetector(object):
         """
         if (not self.has_image):
             self.prev_light_loc = None
-            return False
+            return TrafficLight.UNKNOWN
+
+        distance_to_light = self.dist_to_closest_stop_line()
+
+        if ( 30 > distance_to_light > 5) is False:
+            return TrafficLight.UNKNOWN
 
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
@@ -223,9 +251,9 @@ class TLDetector(object):
 
         light2 = light
 
-        light2.y += 2.0
+        light2.y += 0.75
 
-        light2.z += 1.0
+        light2.z += 1.25
 
         x_corner, y_corner = self.project_to_image_plane(light2)
 
@@ -246,11 +274,16 @@ class TLDetector(object):
         rospy.logwarn(" Light Bounding Box : (%d,%d):(%d,%d)", tl_x, tl_y, br_x, br_y)
 
         # new_image = cv_image[yc1:yc1+90, xc1-50:xc1]
-        new_image = cv_image[tl_y:br_y, tl_x:br_x]
+        # new_image = cv_image[tl_y:br_y, tl_x:br_x]
+        new_image = cv_image
+        cv2.rectangle(new_image, (tl_x, tl_y), (br_x, br_y), (0, 255, 0), 4)
 
         ht, wd = new_image.shape[:2]
-        rospy.logwarn("new size is (%d,%d)", wd, ht)
-        cv_image = cv2.resize(new_image, (wd, ht), interpolation=cv2.INTER_CUBIC)
+        # rospy.logwarn("new size is (%d,%d)", wd, ht)
+        if wd > 0 and ht > 0:
+            cv_image = cv2.resize(new_image, (800, 600), interpolation=cv2.INTER_CUBIC)
+        else:
+            return -1
 
         img_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
         self.debug_img_pub.publish(img_msg)
@@ -271,7 +304,7 @@ class TLDetector(object):
 
             # Check to see if there's a folder for containing the data
             if os.path.isdir(data_folder):
-                
+
                 # If there is, check and see if any training images are saved in it
                 training_files = os.listdir(data_folder)
                 if len(training_files) > 0:
@@ -281,9 +314,11 @@ class TLDetector(object):
                     rospy.logwarn("The last file was {}".format(last_training_file))
                     try:
                         last_index = int(last_training_file.split("_")[1])
-                        self.file_index = last_index+1
+                        self.file_index = last_index + 1
                     except:
-                        raise ValueError("Couldn't understand the naming convention of {}, was it created by the data generator?".format(last_training_file))
+                        raise ValueError(
+                            "Couldn't understand the naming convention of {}, was it created by the data generator?".format(
+                                last_training_file))
             else:
                 os.makedirs(data_folder)
 
@@ -335,9 +370,8 @@ class TLDetector(object):
             rospy.logwarn("Took a traffic light training image")
 
         except:
-            
-            rospy.logwarn("No lights in range")
 
+            rospy.logwarn("No lights in range")
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -377,9 +411,9 @@ class TLDetector(object):
             light_wp = neighbour_index
 
         if light:
-            # state = self.get_light_state(light)
-            state = self.get_light_state_from_list(light_wp)
-            self.generate_training_data(light, state, zoom=False)
+            state = self.get_light_state(light)
+            # state = self.get_light_state_from_list(light_wp)
+            # self.generate_training_data(light, state, zoom=False)
             return light_wp, state
         # self.waypoints = None
         return -1, TrafficLight.UNKNOWN
