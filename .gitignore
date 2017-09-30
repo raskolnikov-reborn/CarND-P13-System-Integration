@@ -5,3 +5,5 @@ devel
 .idea
 profile.tmp
 run.sh
+*.jpg
+*.zip
