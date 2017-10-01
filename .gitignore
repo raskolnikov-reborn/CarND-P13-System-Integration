@@ -5,3 +5,7 @@ devel
 .idea
 profile.tmp
 run.sh
+*.jpg
+*.zip
+*.json
+.ipynb_checkpoints
