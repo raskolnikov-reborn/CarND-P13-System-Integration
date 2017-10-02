@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import numpy as np
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Bool
 from geometry_msgs.msg import PoseStamped, Pose, Point
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 from styx_msgs.msg import Lane
@@ -40,6 +40,7 @@ class TLDetector(object):
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
         sub6 = rospy.Subscriber('/camera/image_raw', Image, self.image_cb, queue_size=1)
+        sub_record_gt = rospy.Subscriber('/record_training_data', Bool, self.gt_cb, queue_size=1)
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -70,6 +71,9 @@ class TLDetector(object):
         self.states_map = {0: 'red', 1: 'yellow', 2: 'green'}
 
         rospy.spin()
+
+    def gt_cb(self, msg):
+        self.gen_train_data = msg.data
 
     def pose_cb(self, msg):
         self.pose = msg
@@ -139,7 +143,7 @@ class TLDetector(object):
 
         return neighbour_index
 
-    def project_to_image_plane(self, point_in_world):
+    def project_to_image_plane(self, point_in_world, trans, rot):
         """Project point from 3D world coordinates to 2D camera image location
 
         Args:
@@ -160,19 +164,6 @@ class TLDetector(object):
         # To be changed in simulator to compensate
         cx = image_width / 2
         cy = image_height / 2
-
-        # get transform between pose of camera and world frame
-        trans = None
-        rot = None
-        try:
-            now = rospy.Time.now()
-            self.listener.waitForTransform("/base_link",
-                                           "/world", now, rospy.Duration(1.0))
-            (trans, rot) = self.listener.lookupTransform("/base_link",
-                                                         "/world", now)
-
-        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
-            rospy.logerr("Failed to find camera to map transform")
 
         # if transform not received just send out mid point of image
         if (trans is None) or (rot is None):
@@ -195,10 +186,10 @@ class TLDetector(object):
 
         # Convert to image co-ordinates using image params
         if fx < 10.0:
-            fx = 2744
-            fy = 2944
+            fx = 2544
+            fy = 2744
             cx = image_width / 2 - 30
-            cy = image_height + 140
+            cy = image_height + 70
 
         u = int(-(fx / z_c) * y_c)
         v = int(-(fy / z_c) * x_c)
@@ -263,10 +254,31 @@ class TLDetector(object):
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
+        # get transform between pose of camera and world frame
+        trans = None
+        rot = None
+        try:
+            now = rospy.Time.now()
+            self.listener.waitForTransform("/base_link",
+                                           "/world", now, rospy.Duration(1.0))
+            (trans, rot) = self.listener.lookupTransform("/base_link",
+                                                         "/world", now)
+
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            rospy.logerr("Failed to find camera to map transform")
+
+            if (trans is None) or (rot is None):
+                return TrafficLight.UNKNOWN
+
+
         # Zooming etc is only needed when we need to generate training data
         if self.gen_train_data:
             # Use TL position from the message to figure out center in the image plane
-            x_center, y_center = self.project_to_image_plane(light)
+
+            # Offset based on observation (The z value in the message seems to be for the top of the light
+            light.z -= 0.6
+
+            x_center, y_center = self.project_to_image_plane(light, trans, rot)
 
             # TODO use light location to zoom in on traffic light in image
 
@@ -275,11 +287,11 @@ class TLDetector(object):
             # it should conceptually be fine for the deep learning pipeline as
             # The Neural Network should be able to extract away the
             light2 = light
-            light2.y += 0.6  # width + padding
-            light2.z += 1.1  # height + padding
+            light2.y += 0.5  # width + padding
+            light2.z += 1.0  # height + padding
 
             # Project the corner to the image plane as well
-            x_corner, y_corner = self.project_to_image_plane(light2)
+            x_corner, y_corner = self.project_to_image_plane(light2, trans, rot)
 
             # Get image parameters in the local variables so that bounding boxes can be capped by image dimensions
             image_width = self.config['camera_info']['image_width']
