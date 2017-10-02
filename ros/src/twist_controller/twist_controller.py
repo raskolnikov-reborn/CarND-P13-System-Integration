@@ -28,9 +28,12 @@ class Controller(object):
         # Create a PID Controller
         # TODO: Tune for simulator. Figure out a way to tune 
         # for the Actual vehicle on the track
-        self.pid_c = PID(42.0, 0.01, 0.15, self.decel_limit, self.accel_limit)
 
-        self.steer_pid = PID(1.5, 0.01, 0.001, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(10.0, 0.5, 3.0, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(0.5, 0.01, 0.001, -max_steer_angle, max_steer_angle)
+
+        # self.pid_c = PID(42.0, 0.01, 0.15, self.decel_limit, self.accel_limit)
+        # self.steer_pid = PID(1.5, 0.01, 0.001, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -80,7 +83,12 @@ class Controller(object):
             throttle = max(0.0,forward_axis)
             # Only apply brakes if the reverse axis value is large enough to supersede the deadband
             #TODO: Figure out how this tuning will work for the real vehicle
-            brake = max(0.0, reverse_axis - self.brake_deadband)
+            # brake = max(0.0, reverse_axis - self.brake_deadband)
+
+            if(reverse_axis > 0):
+                brake = max(reverse_axis, self.brake_deadband)
+            else:
+                brake = 0.0
             # Convert brake to Torque value since that is what the publisher expects
             brake *= BRAKE_TORQUE_SCALE
 

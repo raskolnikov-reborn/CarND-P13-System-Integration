@@ -8,7 +8,7 @@ import numpy as np
 import time
 
 class TLClassifier(object):
-    def __init__(self):
+    def __init__(self, simulation):
 
         # default status
         self.current_status = TrafficLight.UNKNOWN
@@ -17,13 +17,13 @@ class TLClassifier(object):
         working_dir = os.path.dirname(os.path.realpath(__file__))
 
         # flag to switch between real and sim trained classifier
-        self.simulation = True
+        self.simulation = simulation
 
         # Load the right models
         if self.simulation is True:
             self.checkpoint = working_dir + '/output_inference_graph_bosch_2_sim.pb/frozen_inference_graph.pb'
         else:
-            self.checkpoint = working_dir + '/output_inference_graph_frcnn_bosch_udacity/frozen_inference_graph.pb'
+            self.checkpoint = working_dir + '/output_inference_graph_bosch_2_udacity_real.pb/frozen_inference_graph.pb'
 
         # Load labels and classification parameters
         self.path_to_labels = working_dir + '/tl_label_map.pbtxt'
@@ -38,6 +38,8 @@ class TLClassifier(object):
         # Build the model
         self.image_np_deep = None
         self.detection_graph = tf.Graph()
+
+        self.current_light = TrafficLight.UNKNOWN
 
         # create config
         config = tf.ConfigProto()
@@ -81,7 +83,7 @@ class TLClassifier(object):
         if run_network is True:
             np_expanded_image = np.expand_dims(image, axis=0)
 
-            time0 = time.time()
+            # time0 = time.time()
             # Run Detection
             with self.detection_graph.as_default():
                 (boxes, scores, classes, num) = self.sess.run(
@@ -89,9 +91,9 @@ class TLClassifier(object):
                      self.detection_classes, self.num_detections],
                     feed_dict={self.image_tensor: np_expanded_image})
 
-            time1 = time.time()
-
-            print("Time in milliseconds", (time1 - time0) * 1000)
+            # time1 = time.time()
+            #
+            # print("Time in milliseconds", (time1 - time0) * 1000)
 
 
             # squeeze as numpy arrays
@@ -106,7 +108,7 @@ class TLClassifier(object):
                 if scores is None or scores[i] > min_score_thresh:
                     class_name = self.category_index[classes[i]]['name']
 
-                    print('{}'.format(class_name))
+                    # print('{}'.format(class_name))
 
                     # Traffic light thing
                     self.current_light = TrafficLight.UNKNOWN
@@ -132,9 +134,9 @@ class TLClassifier(object):
                     estimated_distance = round((perceived_depth_x + perceived_depth_y) / 2)
 
 
-                    print("perceived_width", perceived_width_x, perceived_width_y)
-                    print("perceived_depth", perceived_depth_x, perceived_depth_y)
-                    print("Average depth (ft?)", estimated_distance)
+                    # print("perceived_width", perceived_width_x, perceived_width_y)
+                    # print("perceived_depth", perceived_depth_x, perceived_depth_y)
+                    # print("Average depth (ft?)", estimated_distance)
 
             # Visualization of the results of a detection.
             vis_util.visualize_boxes_and_labels_on_image_array(

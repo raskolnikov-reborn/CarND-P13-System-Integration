@@ -94,7 +94,8 @@ class WaypointUpdater ( object ):
                 wpi = wp_list[index]
                 # Update Velocity (Temporary: get velocity after considering TLDC output)
                 # Units: Meters/Second
-                # wpi.twist.twist.linear.x = 10.0 * 5.0 / 18.0;
+                # since we have to stop at the last waypoint, don't override stopping velocities with target velocity
+                wpi.twist.twist.linear.x = min(10.0 * 5.0 / 18.0, wpi.twist.twist.linear.x)
                 lane.waypoints.append(wpi)
 
             light = None

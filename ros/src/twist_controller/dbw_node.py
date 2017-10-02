@@ -126,7 +126,9 @@ class DBWNode(object):
         # Prevent any untoward motion due to PID oscillations about zero
         if throttle < self.throttle_deadband:
             throttle = 0.0
-            brake = 100000
+            # brake = 100000
+
+        rospy.logwarn("TBS Values are (%f,%f,%f)", throttle, brake, steer)
 
         if throttle > 0.001 and throttle != self.last_throttle:
             tcmd = ThrottleCmd()

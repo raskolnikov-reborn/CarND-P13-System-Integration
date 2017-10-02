@@ -68,7 +68,13 @@ class TLDetector(object):
 
         # mappings from each state to color
         self.states_map = {0: 'red', 1: 'yellow', 2: 'green'}
-        self.light_classifier = TLClassifier()
+
+        fx = self.config['camera_info']['focal_length_x']
+
+        if fx < 10:
+            self.light_classifier = TLClassifier(True)
+        else:
+            self.light_classifier = TLClassifier(False)
 
         rospy.spin()
 
@@ -246,7 +252,7 @@ class TLDetector(object):
             self.prev_light_loc = None
             return TrafficLight.UNKNOWN
 
-        self.camera_image.encoding = "rgb8"
+        # self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, self.camera_image.encoding)
 
         # Zooming etc is only needed when we need to generate training data
