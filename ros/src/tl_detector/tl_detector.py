@@ -53,7 +53,6 @@ class TLDetector(object):
         self.stop_line_positions = self.config['stop_line_positions']
 
         self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
@@ -62,13 +61,14 @@ class TLDetector(object):
         self.state_count = 0
         self.prev_light_loc = None
 
-        self.gen_train_data = True
+        self.gen_train_data = False
 
         # data generator file count index
         self.file_index = 0
 
         # mappings from each state to color
         self.states_map = {0: 'red', 1: 'yellow', 2: 'green'}
+        self.light_classifier = TLClassifier()
 
         rospy.spin()
 
@@ -246,33 +246,33 @@ class TLDetector(object):
             self.prev_light_loc = None
             return TrafficLight.UNKNOWN
 
-        distance_to_light = self.dist_to_closest_stop_line()
-
-        if not (0 < distance_to_light < 35):
-            return TrafficLight.UNKNOWN
-
         self.camera_image.encoding = "rgb8"
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        # get transform between pose of camera and world frame
-        trans = None
-        rot = None
-        try:
-            now = rospy.Time.now()
-            self.listener.waitForTransform("/base_link",
-                                           "/world", now, rospy.Duration(1.0))
-            (trans, rot) = self.listener.lookupTransform("/base_link",
-                                                         "/world", now)
-
-        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
-            rospy.logerr("Failed to find camera to map transform")
-
-            if (trans is None) or (rot is None):
-                return TrafficLight.UNKNOWN
-
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, self.camera_image.encoding)
 
         # Zooming etc is only needed when we need to generate training data
         if self.gen_train_data:
+
+            distance_to_light = self.dist_to_closest_stop_line()
+
+            if not (0 < distance_to_light < 75):
+                return TrafficLight.UNKNOWN
+
+            # get transform between pose of camera and world frame
+            trans = None
+            rot = None
+            try:
+                now = rospy.Time.now()
+                self.listener.waitForTransform("/base_link",
+                                               "/world", now, rospy.Duration(1.0))
+                (trans, rot) = self.listener.lookupTransform("/base_link",
+                                                             "/world", now)
+
+            except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+                rospy.logerr("Failed to find camera to map transform")
+
+                if (trans is None) or (rot is None):
+                    return TrafficLight.UNKNOWN
+
             # Use TL position from the message to figure out center in the image plane
 
             # Offset based on observation (The z value in the message seems to be for the top of the light
@@ -320,7 +320,7 @@ class TLDetector(object):
             cv2.rectangle(new_image, (tl_x, tl_y), (br_x, br_y), (0, 255, 0), 4)
 
             # create the message from the debug image
-            img_msg = self.bridge.cv2_to_imgmsg(new_image, encoding='bgr8')
+            img_msg = self.bridge.cv2_to_imgmsg(new_image, self.camera_image.encoding)
 
             # publish the output
             self.debug_img_pub.publish(img_msg)
@@ -329,7 +329,12 @@ class TLDetector(object):
             return self.lights[light_wp].state
         else:
             # Get classification TODO: use classifier
-            return self.light_classifier.get_classification(cv_image)
+            light_state =  self.light_classifier.get_classification(cv_image)
+            img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_deep, self.camera_image.encoding)
+            # publish the output
+            self.debug_img_pub.publish(img_msg)
+            return light_state
+
 
     def get_light_state_from_list(self, light_index):
         return self.lights[light_index].state

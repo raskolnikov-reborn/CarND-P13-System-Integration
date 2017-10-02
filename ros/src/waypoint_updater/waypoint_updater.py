@@ -94,8 +94,8 @@ class WaypointUpdater ( object ):
                 wpi = wp_list[index]
                 # Update Velocity (Temporary: get velocity after considering TLDC output)
                 # Units: Meters/Second
-                # wpi.twist.twist.linear.x = 20.0;
-                lane.waypoints.append ( wpi )
+                # wpi.twist.twist.linear.x = 10.0 * 5.0 / 18.0;
+                lane.waypoints.append(wpi)
 
             light = None
             # Check traffic light status
