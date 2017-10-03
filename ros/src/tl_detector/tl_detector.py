@@ -39,7 +39,7 @@ class TLDetector(object):
         testing your solution in real life so don't rely on it in the final submission.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
-        sub6 = rospy.Subscriber('/camera/image_raw', Image, self.image_cb, queue_size=1)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size=1)
         sub_record_gt = rospy.Subscriber('/record_training_data', Bool, self.gt_cb, queue_size=1)
 
         config_string = rospy.get_param("/traffic_light_config")
