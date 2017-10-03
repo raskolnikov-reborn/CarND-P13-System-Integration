@@ -170,7 +170,7 @@ class WaypointUpdater ( object ):
                         for i in range ( braking_start_wp, LOOKAHEAD_WPS):
                             dec_step = i - braking_start_wp + 1
                             lane.waypoints[i].twist.twist.linear.x  = self.current_velocity - (deceleration * dec_step)
-                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x)
+                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x - 1.0)
 
             self.final_waypoints_pub.publish ( lane )
 

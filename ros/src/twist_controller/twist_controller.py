@@ -5,7 +5,7 @@ from yaw_controller import YawController
 #GAS_DENSITY = 2.858
 #ONE_MPH = 0.44704
 MAX_V_MPS = 44.7 # Maximum speed in meters_per_second
-BRAKE_TORQUE_SCALE = 20000
+BRAKE_TORQUE_SCALE = 100
 YAW_SCALE = 8.2
 
 class Controller(object):
@@ -29,8 +29,8 @@ class Controller(object):
         # TODO: Tune for simulator. Figure out a way to tune 
         # for the Actual vehicle on the track
 
-        self.pid_c = PID(10.0, 0.5, 3.0, -self.accel_limit, self.accel_limit)
-        self.steer_pid = PID(0.5, 0.01, 0.001, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(15.0, 1.0, 5.0, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(0.1, 0.001, 0.2, -max_steer_angle, max_steer_angle)
 
         # self.pid_c = PID(42.0, 0.01, 0.15, self.decel_limit, self.accel_limit)
         # self.steer_pid = PID(1.5, 0.01, 0.001, -max_steer_angle, max_steer_angle)
