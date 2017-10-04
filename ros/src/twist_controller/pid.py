@@ -12,6 +12,7 @@ class PID(object):
         self.max = mx
 
         self.int_val = self.last_int_val = self.last_error = 0.
+        self.counter = 0
 
 
     def reset(self):
@@ -34,5 +35,11 @@ class PID(object):
         else:
             self.int_val = integral
         self.last_error = error
+
+        self.counter += 1
+
+        if self.counter >= 200:
+            self.counter = 0
+            self.reset
 
         return val

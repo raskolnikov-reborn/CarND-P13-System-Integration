@@ -32,8 +32,8 @@ class Controller(object):
         # self.pid_c = PID(15.0, 1.0, 5.0, -self.accel_limit, self.accel_limit)
         # self.steer_pid = PID(0.1, 0.001, 0.2, -max_steer_angle, max_steer_angle)
 
-        self.pid_c = PID(42.0, 0.1, 0.15, self.decel_limit, self.accel_limit)
-        self.steer_pid = PID(1.5, 0.01, 0.001, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(4.0, 0.05, 0.30, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(1.5, 0.01, 0.1, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -47,6 +47,11 @@ class Controller(object):
         # Get the variables from the arguments
         twist_linear = kwargs['twist_command'].twist.linear
         twist_angular = kwargs['twist_command'].twist.angular
+
+        if math.fabs(twist_linear.x) < 0.1:
+            twist_linear.x = 0.
+        if math.fabs(twist_angular.z) < 0.001:
+            twist_angular.z = 0.
 
         cv_linear = kwargs['current_velocity'].twist.linear
         cv_angular = kwargs['current_velocity'].twist.angular
@@ -77,7 +82,7 @@ class Controller(object):
             # PID class returns output for throttle and 
             # brake axes as a joint forward_backward axis
             forward_axis = self.pid_c.step(vel_err, dt)
-            reverse_axis = -forward_axis
+            reverse_axis = -forward_axis*(self.decel_limit/(-self.accel_limit))
 
             # if forward axis is positive only then give any throttle
             throttle = max(0.0,forward_axis)

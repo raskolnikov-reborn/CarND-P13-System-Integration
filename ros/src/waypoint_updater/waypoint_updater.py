@@ -107,7 +107,7 @@ class WaypointUpdater ( object ):
                     neighbour_distance = distance
                     neighbour_index = i
 
-            # Create a lookahead wps sized list for final waypoints    
+            # Create a lookahead wps sized list for final waypoints
             for i in range ( neighbour_index, neighbour_index + LOOKAHEAD_WPS ):
                 # Handle Wraparound
                 index = i % len(wp_list)
@@ -186,7 +186,7 @@ class WaypointUpdater ( object ):
                         for i in range ( braking_start_wp, LOOKAHEAD_WPS):
                             dec_step = i - braking_start_wp + 1
                             lane.waypoints[i].twist.twist.linear.x  = self.current_velocity - (deceleration * dec_step)
-                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x - 0.5)
+                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x - 1.0)
 
             self.final_waypoints_pub.publish ( lane )
 

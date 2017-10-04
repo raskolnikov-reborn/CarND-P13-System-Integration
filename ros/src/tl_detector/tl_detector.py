@@ -73,8 +73,10 @@ class TLDetector(object):
 
         if fx < 10:
             self.light_classifier = TLClassifier(True)
+            self.target_encoding = 'rgb8'
         else:
             self.light_classifier = TLClassifier(False)
+            self.target_encoding = 'rgb8'
 
         rospy.spin()
 
@@ -113,7 +115,7 @@ class TLDetector(object):
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
+            light_wp = light_wp if ((state == TrafficLight.RED) or (state == TrafficLight.YELLOW)) else -1
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -252,8 +254,7 @@ class TLDetector(object):
             self.prev_light_loc = None
             return TrafficLight.UNKNOWN
 
-        # self.camera_image.encoding = "rgb8"
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, self.camera_image.encoding)
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, self.target_encoding)
 
         # Zooming etc is only needed when we need to generate training data
         if self.gen_train_data:
@@ -326,7 +327,7 @@ class TLDetector(object):
             cv2.rectangle(new_image, (tl_x, tl_y), (br_x, br_y), (0, 255, 0), 4)
 
             # create the message from the debug image
-            img_msg = self.bridge.cv2_to_imgmsg(new_image, self.camera_image.encoding)
+            img_msg = self.bridge.cv2_to_imgmsg(new_image, self.target_encoding)
 
             # publish the output
             self.debug_img_pub.publish(img_msg)
@@ -335,8 +336,8 @@ class TLDetector(object):
             return self.lights[light_wp].state
         else:
             # Get classification TODO: use classifier
-            light_state =  self.light_classifier.get_classification(cv_image)
-            img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_deep, self.camera_image.encoding)
+            light_state = self.light_classifier.get_classification(cv_image)
+            img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_deep, self.target_encoding)
             # publish the output
             self.debug_img_pub.publish(img_msg)
             return light_state
