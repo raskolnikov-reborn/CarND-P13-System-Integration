@@ -145,7 +145,7 @@ class DBWNode(object):
         if brake > 0.001:
             bcmd = BrakeCmd()
             bcmd.enable = True
-            bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
+            bcmd.pedal_cmd_type = BrakeCmd.CMD_PERCENT
             bcmd.pedal_cmd = brake
             self.brake_pub.publish(bcmd)
     

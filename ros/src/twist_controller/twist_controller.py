@@ -32,12 +32,14 @@ class Controller(object):
         # self.pid_c = PID(15.0, 1.0, 5.0, -self.accel_limit, self.accel_limit)
         # self.steer_pid = PID(0.1, 0.001, 0.2, -max_steer_angle, max_steer_angle)
 
-        self.pid_c = PID(4.0, 0.05, 0.30, -self.accel_limit, self.accel_limit)
-        self.steer_pid = PID(1.5, 0.01, 0.1, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(10.2, 0.005, 0.7, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(0.6, 0.004, 0.2, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
 
+        # scale of max acceleration to deceleration
+        self.brake_scale = self.decel_limit/(-self.accel_limit)
         pass
 
     def control(self, **kwargs):
@@ -85,17 +87,13 @@ class Controller(object):
             reverse_axis = -forward_axis*(self.decel_limit/(-self.accel_limit))
 
             # if forward axis is positive only then give any throttle
-            throttle = max(0.0,forward_axis)
+            throttle = max(0.0, forward_axis)
             # Only apply brakes if the reverse axis value is large enough to supersede the deadband
             #TODO: Figure out how this tuning will work for the real vehicle
-            # brake = max(0.0, reverse_axis - self.brake_deadband)
+            brake = max(0.0, reverse_axis - self.brake_deadband)
 
-            if(reverse_axis > 0):
-                brake = max(reverse_axis, self.brake_deadband)
-            else:
-                brake = 0.0
             # Convert brake to Torque value since that is what the publisher expects
-            brake *= BRAKE_TORQUE_SCALE
+            brake *= self.brake_scale*100
 
             # get the steering value from the yaw controller
             steering = self.steer_c.get_steering(target_v, target_w, present_v)
