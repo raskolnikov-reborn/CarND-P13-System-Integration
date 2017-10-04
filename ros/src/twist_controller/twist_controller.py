@@ -32,8 +32,8 @@ class Controller(object):
         # self.pid_c = PID(15.0, 1.0, 5.0, -self.accel_limit, self.accel_limit)
         # self.steer_pid = PID(0.1, 0.001, 0.2, -max_steer_angle, max_steer_angle)
 
-        self.pid_c = PID(10.2, 0.005, 0.7, -self.accel_limit, self.accel_limit)
-        self.steer_pid = PID(0.6, 0.004, 0.2, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(10.2, 0.001, 0.7, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(0.8, 0.004, 0.2, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -81,6 +81,14 @@ class Controller(object):
             dt = time - self.last_ut
             self.last_ut = time
 
+            # if vehicle is at a stop we want to reset the integral component
+            # of the PID controllers so as to not oscillate around zero
+            if present_v < 0.5:
+                self.pid_c.reset()
+                self.steer_pid.reset()
+
+
+
             # PID class returns output for throttle and 
             # brake axes as a joint forward_backward axis
             forward_axis = self.pid_c.step(vel_err, dt)
@@ -100,7 +108,7 @@ class Controller(object):
 
             # update using steering pid loop
             steering = self.steer_pid.step(steering - steer_feedback, dt)
-            # steering *= steer_ratio
+            # steering *= steer_ratios
 
             return throttle, brake, steering
         else:

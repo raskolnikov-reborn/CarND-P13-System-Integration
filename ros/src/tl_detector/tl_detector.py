@@ -61,7 +61,7 @@ class TLDetector(object):
         self.state_count = 0
         self.prev_light_loc = None
 
-        self.gen_train_data = True
+        self.gen_train_data = False
 
         # data generator file count index
         self.file_index = 0
@@ -317,9 +317,9 @@ class TLDetector(object):
             br_y = min(y_center + box_half_height, image_height - 1)
 
             # save the training image and annotation
-            # self.generate_training_data(cv_image, image_width, image_height,
-            #     self.lights[light_wp].state, tl_x, tl_y, int(box_half_width*2),
-            #     int(box_half_height*2))
+            self.generate_training_data(cv_image, image_width, image_height,
+                self.lights[light_wp].state, tl_x, tl_y, int(box_half_width*2),
+                int(box_half_height*2))
 
             # Image for debug_msgs
             new_image = cv_image
@@ -333,11 +333,13 @@ class TLDetector(object):
             self.debug_img_pub.publish(img_msg)
 
             # return Ground truth to be published on the message
-            return self.lights[light_wp].state
+            # return self.lights[light_wp].state
+
+            return TrafficLight.UNKNOWN
         else:
             # Get classification TODO: use classifier
             light_state = self.light_classifier.get_classification(cv_image)
-            img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_deep, self.target_encoding)
+            img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_output, self.target_encoding)
             # publish the output
             self.debug_img_pub.publish(img_msg)
             return light_state
@@ -455,8 +457,8 @@ class TLDetector(object):
             light_wp = neighbour_index
 
         if light:
-            # state = self.get_light_state(light_wp)
-            state = self.get_light_state_from_list(light_wp)
+            state = self.get_light_state(light_wp)
+            # state = self.get_light_state_from_list(light_wp)
             # self.generate_training_data(light, state, zoom=False)
             return light_wp, state
         # self.waypoints = None

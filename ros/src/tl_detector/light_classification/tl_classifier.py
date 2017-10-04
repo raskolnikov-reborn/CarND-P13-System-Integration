@@ -1,8 +1,8 @@
 # imports
 from styx_msgs.msg import TrafficLight
 import os
-from object_detection.utils import label_map_util
-from object_detection.utils import visualization_utils as vis_util
+# from object_detection.utils import label_map_util
+# from object_detection.utils import visualization_utils as vis_util
 import tensorflow as tf
 import numpy as np
 import time
@@ -25,18 +25,15 @@ class TLClassifier(object):
         else:
             self.checkpoint = working_dir + '/output_inference_graph_bosch_2_udacity_real.pb/frozen_inference_graph.pb'
 
-        # Load labels and classification parameters
-        self.path_to_labels = working_dir + '/tl_label_map.pbtxt'
-        self.num_classes = 3
+        # Create a label dictionary
+        item_green = {'id': 1, 'name': u'traffic_light-green'}
+        item_red = {'id': 2, 'name': u'traffic_light-red'}
+        item_yellow = {'id': 3, 'name': u'traffic_light-yellow'}
 
-        self.label_map = label_map_util.load_labelmap(self.path_to_labels)
-        self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.num_classes,
-                                                                    use_display_name=True)
-
-        self.category_index = label_map_util.create_category_index(self.categories)
+        self.label_dict = {1: item_green, 2: item_red, 3: item_yellow}
 
         # Build the model
-        self.image_np_deep = None
+        self.image_np_output = None
         self.detection_graph = tf.Graph()
 
         self.current_light = TrafficLight.UNKNOWN
@@ -66,6 +63,8 @@ class TLClassifier(object):
         self.detection_classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
         self.num_detections = self.detection_graph.get_tensor_by_name('num_detections:0')
 
+        self.activated = True  # flag to turn off classifier during development
+
         pass
 
     def get_classification(self, image):
@@ -78,39 +77,35 @@ class TLClassifier(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        run_network = True  # flag to disable running network if desired
 
-        if run_network is True:
-            np_expanded_image = np.expand_dims(image, axis=0)
+        # Run the classifier if activated flag is true
+        if self.activated is True:
 
-            # time0 = time.time()
-            # Run Detection
+            # create image as np.ndarray
+            np_exp_image = np.expand_dims(image, axis=0)
+
+            # get the detections and scores and bounding boxes
             with self.detection_graph.as_default():
-                (boxes, scores, classes, num) = self.sess.run(
-                    [self.detection_boxes, self.detection_scores,
-                     self.detection_classes, self.num_detections],
-                    feed_dict={self.image_tensor: np_expanded_image})
+                (boxes, scores, classes, num) = self.sess.run( [self.detection_boxes, self.detection_scores,
+                                                                self.detection_classes, self.num_detections],
+                                                               feed_dict={self.image_tensor: np_exp_image})
 
-            # time1 = time.time()
-            #
-            # print("Time in milliseconds", (time1 - time0) * 1000)
-
-
-            # squeeze as numpy arrays
+            # create np arrays
             boxes = np.squeeze(boxes)
             scores = np.squeeze(scores)
             classes = np.squeeze(classes).astype(np.int32)
 
-            min_score_thresh = .50
+            # Set a Classification threshold
+            classification_threshold = .50
 
-
+            # Iterate the boxes to get all detections
             for i in range(boxes.shape[0]):
-                if scores is None or scores[i] > min_score_thresh:
-                    class_name = self.category_index[classes[i]]['name']
 
-                    # print('{}'.format(class_name))
+                # Get class name for detections with high enough scores
+                if scores is None or scores[i] > classification_threshold:
+                    class_name = self.label_dict[classes[i]]['name']
 
-                    # Traffic light thing
+                    # Set default state to unknown
                     self.current_light = TrafficLight.UNKNOWN
 
                     if class_name == 'traffic_light-red':
@@ -120,32 +115,27 @@ class TLClassifier(object):
                     elif class_name == 'traffic_light-yellow':
                         self.current_light = TrafficLight.YELLOW
 
-                    fx = 1345.200806
-                    fy = 1353.838257
-                    perceived_width_x = (boxes[i][3] - boxes[i][1]) * 800
-                    perceived_width_y = (boxes[i][2] - boxes[i][0]) * 600
+                    # Depth estimation
+                    # Disabled because /vehicle/traffic_lights topic is available to waypoint updater
+                    # Detected light is assumed to be the closest one
+                    # fx = 1345.200806
+                    # fy = 1353.838257
+                    # perceived_width_x = (boxes[i][3] - boxes[i][1]) * 800
+                    # perceived_width_y = (boxes[i][2] - boxes[i][0]) * 600
+                    #
+                    # perceived_depth_x = ((1 * fx) / perceived_width_x)
+                    # perceived_depth_y = ((3 * fy) / perceived_width_y)
+                    #
+                    # distance = round((perceived_depth_x + perceived_depth_y) / 2)
 
-                    # ymin, xmin, ymax, xmax = box
-                    # depth_prime = (width_real * focal) / perceived_width
-                    # traffic light is 4 feet long and 1 foot wide?
-                    perceived_depth_x = ((1 * fx) / perceived_width_x)
-                    perceived_depth_y = ((3 * fy) / perceived_width_y)
+            # Visualization of the results of a detection
+            # vis_util.visualize_boxes_and_labels_on_image_array(image, boxes, classes, scores,
+            #                                                    self.label_dict,
+            #                                                    use_normalized_coordinates=True,
+            #                                                    line_thickness=8)
 
-                    estimated_distance = round((perceived_depth_x + perceived_depth_y) / 2)
-
-
-                    # print("perceived_width", perceived_width_x, perceived_width_y)
-                    # print("perceived_depth", perceived_depth_x, perceived_depth_y)
-                    # print("Average depth (ft?)", estimated_distance)
-
-            # Visualization of the results of a detection.
-            vis_util.visualize_boxes_and_labels_on_image_array(
-                image, boxes, classes, scores,
-                self.category_index,
-                use_normalized_coordinates=True,
-                line_thickness=8)
-
-        # For visualization topic output
-        self.image_np_deep = image
+        # Set it to object attribute for visualization topic output
+        # Can be disabled to gain a few ms in performance
+        self.image_np_output = image
 
         return self.current_light
