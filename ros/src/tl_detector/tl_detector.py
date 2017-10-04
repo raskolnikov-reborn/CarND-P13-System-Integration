@@ -39,7 +39,7 @@ class TLDetector(object):
         testing your solution in real life so don't rely on it in the final submission.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size=1)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size=1, buff_size=100000)
         sub_record_gt = rospy.Subscriber('/record_training_data', Bool, self.gt_cb, queue_size=1)
 
         config_string = rospy.get_param("/traffic_light_config")
@@ -65,7 +65,7 @@ class TLDetector(object):
 
         # data generator file count index
         self.file_index = 0
-
+        self.target_encoding = 'rgb8'
         # mappings from each state to color
         self.states_map = {0: 'red', 1: 'yellow', 2: 'green'}
 
@@ -73,10 +73,9 @@ class TLDetector(object):
 
         if fx < 10:
             self.light_classifier = TLClassifier(True)
-            self.target_encoding = 'rgb8'
         else:
             self.light_classifier = TLClassifier(False)
-            self.target_encoding = 'rgb8'
+
 
         rospy.spin()
 
@@ -337,14 +336,15 @@ class TLDetector(object):
 
             return TrafficLight.UNKNOWN
         else:
-            # Get classification TODO: use classifier
+            # Get classification
             light_state = self.light_classifier.get_classification(cv_image)
             img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_output, self.target_encoding)
+
             # publish the output
             self.debug_img_pub.publish(img_msg)
             return light_state
 
-
+    # return ground truth light state
     def get_light_state_from_list(self, light_index):
         return self.lights[light_index].state
 
@@ -429,22 +429,23 @@ class TLDetector(object):
 
         """
         light = None
-        light_positions = self.config['stop_line_positions']
-        if (self.pose):
+        car_position = None
+
+        if self.pose:
             car_position = self.get_closest_waypoint(self.pose.pose)
 
         # TODO find the closest visible traffic light (if one exists)
 
         neighbour_index = None
         neighbour_distance = 100000.0
-        if self.waypoints is not None:
+        if self.waypoints is not None and car_position is not None:
             pose = self.waypoints.waypoints[car_position].pose.pose
         else:
             return -1, TrafficLight.UNKNOWN
 
         for i in range(len(self.lights)):
             lpi = self.lights[i].pose.pose.position
-            # rospy.logwarn(lpi)
+
             distance = math.sqrt(
                 (lpi.x - pose.position.x) ** 2 + (lpi.y - pose.position.y) ** 2 + (lpi.z - pose.position.z ** 2))
             if distance < neighbour_distance:
@@ -459,9 +460,8 @@ class TLDetector(object):
         if light:
             state = self.get_light_state(light_wp)
             # state = self.get_light_state_from_list(light_wp)
-            # self.generate_training_data(light, state, zoom=False)
             return light_wp, state
-        # self.waypoints = None
+
         return -1, TrafficLight.UNKNOWN
 
 
