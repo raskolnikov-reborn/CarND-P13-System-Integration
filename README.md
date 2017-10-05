@@ -84,7 +84,7 @@ pip install -r requirements.txt
 
 4. Unzip the models.zip file 
 
-5. copy the contents into ros/src/tl_detector/light_classification/ subdirectory of the project directory
+5. copy the contents of models/ folder into ros/src/tl_detector/light_classification/ subdirectory of the project directory
 
 6. Make and run styx
 ```bash
