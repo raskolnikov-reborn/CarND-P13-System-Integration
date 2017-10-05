@@ -51,6 +51,25 @@ This node is responsible for receiving images from the camera and detecting and 
 * Predict using loaded model
 * Publish traffic light state based on predicted output if score of detection > 50%
 
+## Data Generation from Simulator
+Ultimately our team employed a few thousand training images created using the Udacity system integration simulator in our final traffic light classifier. These training files were generated in the format of an unzoomed 800x600 pixel image plus an annotation JSON which detailed the current state of the captured traffic light as well as coordinates for a rectangular bounding box surrounding the light.
+
+### Challenges
+The team faced two primary challenges while creating training data from the simulator:
+* Latency - lag between the graphical display and ROS framework resulted in incorrectly labeled frames or poorly drawn bounding boxes
+* Zooming - the team never perfectly succeeded in using simulator x,y coordinates of the vehicle and the traffic light of interest to identify which pixels in the current frame were of interest. Our final solution was good enough for training data generation, then we employed a deep neural network to locate the traffic lights when actually driving the car.
+
+### Overcoming Latency Issues
+We tried a few approaches to overcoming the poorly labeled images and poorly drawn bounding boxes created by lag, the [most novel of which probably being to try and use outlier detection techniques out of the scikit-learn module](https://github.com/raskolnikov-reborn/CarND-P13-System-Integration/blob/master/sim_data_cleanup/Simulator%20data%20cleanup.ipynb). Ultimately we ended up:
+* Combing through our ROS framework for inefficiencies to help reduce the lag in the first place (it also helped a lot that our team leader had a powerful PC to use)
+* Manual data checking
+
+### Overcoming Zooming Issues
+Our team had trouble getting the neccessary coordinate and perspective transforms to work perfectly for zooming the traffic light camera into the pixels of the traffic light of interest, [which was apparently a common problem amongst teams and is still being understood.](https://discussions.udacity.com/t/focal-length-wrong/358568) In generating training data, our solution to this was:
+* To 'tune' our zooming function with some baseline assumptions about size and proportion of the frame the through manual trial and error to be 'most correct'
+* Creating a toggle message for when the car would capture training data. This helped prevent images from being generated while the car was too far from the next traffic light and zooming would fail
+* Manual data checking
+
 ### Deep Learning Model:
 We used a faster_rcnn model and google tensorflows object detection API to train two models. One for simulator and another one for Carla.
 
@@ -123,8 +142,3 @@ roslaunch launch/site.launch
 2. Jeremy Shannon: For his excellent post and tweaks on the focal length problem in the simulator which helped us generate usable training data from the simulator. https://discussions.udacity.com/t/focal-length-wrong/358568
 3. Davy for building a usable docker container before their was official docker support which helped us push development on laptop machines as well. https://discussions.udacity.com/t/docker-container-to-compile-and-run-project-linux-and-mac/362893
 
-
-
-```python
-
-```
