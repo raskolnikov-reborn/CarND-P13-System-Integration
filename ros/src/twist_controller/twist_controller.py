@@ -23,14 +23,7 @@ class Controller(object):
 
 
         # Create Variable for the last update time
-        self.last_ut = None
-
-        # Create a PID Controller
-        # TODO: Tune for simulator. Figure out a way to tune 
-        # for the Actual vehicle on the track
-
-        # self.pid_c = PID(15.0, 1.0, 5.0, -self.accel_limit, self.accel_limit)
-        # self.steer_pid = PID(0.1, 0.001, 0.2, -max_steer_angle, max_steer_angle)
+        self.last_update_time = None
 
         self.pid_c = PID(10.2, 0.001, 0.7, -self.accel_limit, self.accel_limit)
         self.steer_pid = PID(0.8, 0.004, 0.2, -max_steer_angle, max_steer_angle)
@@ -72,14 +65,14 @@ class Controller(object):
         present_v = cv_linear.x
         target_w = twist_angular.z
 
-        if self.last_ut is not None:
+        if self.last_update_time is not None:
             # Get current time
             time = rospy.get_time()
 
             # Compute timestep between updates and save 
             # for next iteration
-            dt = time - self.last_ut
-            self.last_ut = time
+            dt = time - self.last_update_time
+            self.last_update_time = time
 
             # if vehicle is at a stop we want to reset the integral component
             # of the PID controllers so as to not oscillate around zero
@@ -113,5 +106,5 @@ class Controller(object):
             return throttle, brake, steering
         else:
             # Update the last_update time and send Zeroes tuple
-            self.last_ut = rospy.get_time()
+            self.last_update_time = rospy.get_time()
             return 0., 0., 0.
