@@ -60,6 +60,25 @@ class WaypointUpdater ( object ):
             self.iterate ()
             rate.sleep ()
 
+    def deep_copy_wp(self, waypoint):
+
+        new_wp = Waypoint()
+        new_wp.pose.pose.position.x = waypoint.pose.pose.position.x
+        new_wp.pose.pose.position.y = waypoint.pose.pose.position.y
+        new_wp.pose.pose.position.z = waypoint.pose.pose.position.z
+        new_wp.pose.pose.orientation.x = waypoint.pose.pose.orientation.x
+        new_wp.pose.pose.orientation.y = waypoint.pose.pose.orientation.y
+        new_wp.pose.pose.orientation.z = waypoint.pose.pose.orientation.z
+        new_wp.pose.pose.orientation.w = waypoint.pose.pose.orientation.w
+        new_wp.twist.twist.linear.x = waypoint.twist.twist.linear.x
+        new_wp.twist.twist.linear.y = waypoint.twist.twist.linear.y
+        new_wp.twist.twist.linear.z = waypoint.twist.twist.linear.z
+        new_wp.twist.twist.angular.x = waypoint.twist.twist.angular.x
+        new_wp.twist.twist.angular.y = waypoint.twist.twist.angular.y
+        new_wp.twist.twist.angular.z = waypoint.twist.twist.angular.z
+
+        return new_wp
+
     def iterate(self):
         # If the base waypoints and the current pose have been received
         if hasattr ( self, 'base_waypoints' ) and hasattr ( self, 'current_pose' ) and hasattr(self, 'current_velocity'):
@@ -71,6 +90,7 @@ class WaypointUpdater ( object ):
 
             # Create local variables from messages
             curr_pose = self.current_pose.pose.position
+
             wp_list = self.base_waypoints.waypoints
 
             # Create variables for nearest distance and neighbour
@@ -87,15 +107,12 @@ class WaypointUpdater ( object ):
                     neighbour_distance = distance
                     neighbour_index = i
 
-            # Create a lookahead wps sized list for final waypoints    
+            # Create a lookahead wps sized list for final waypoints
             for i in range ( neighbour_index, neighbour_index + LOOKAHEAD_WPS ):
                 # Handle Wraparound
-                index = i % len ( wp_list )
-                wpi = wp_list[index]
-                # Update Velocity (Temporary: get velocity after considering TLDC output)
-                # Units: Meters/Second
-                # wpi.twist.twist.linear.x = 20.0;
-                lane.waypoints.append ( wpi )
+                index = i % len(wp_list)
+                wpi = self.deep_copy_wp(wp_list[index])
+                lane.waypoints.append(wpi)
 
             light = None
             # Check traffic light status
@@ -169,7 +186,7 @@ class WaypointUpdater ( object ):
                         for i in range ( braking_start_wp, LOOKAHEAD_WPS):
                             dec_step = i - braking_start_wp + 1
                             lane.waypoints[i].twist.twist.linear.x  = self.current_velocity - (deceleration * dec_step)
-                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x)
+                            lane.waypoints[i].twist.twist.linear.x = max(0.00, lane.waypoints[i].twist.twist.linear.x - 1.0)
 
             self.final_waypoints_pub.publish ( lane )
 
@@ -180,8 +197,7 @@ class WaypointUpdater ( object ):
         pass
 
     def waypoints_cb(self, waypoints):
-        if self.traffic_light_behaviour is False:
-            self.base_waypoints = waypoints
+        self.base_waypoints = waypoints
         pass
 
     def traffic_cb(self, msg):

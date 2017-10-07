@@ -79,7 +79,7 @@ class DBWNode(object):
         self.controller = Controller(**arg_list)
 
         # Set Hz rate for ros spin
-        self.loop_rate = 10
+        self.loop_rate = 40
 
         rate = rospy.Rate(self.loop_rate)
 
@@ -126,7 +126,8 @@ class DBWNode(object):
         # Prevent any untoward motion due to PID oscillations about zero
         if throttle < self.throttle_deadband:
             throttle = 0.0
-            brake = 100000
+
+        # rospy.logwarn("TBS Values are (%f,%f,%f)", throttle, brake, steer)
 
         if throttle > 0.001 and throttle != self.last_throttle:
             tcmd = ThrottleCmd()
@@ -144,7 +145,7 @@ class DBWNode(object):
         if brake > 0.001:
             bcmd = BrakeCmd()
             bcmd.enable = True
-            bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
+            bcmd.pedal_cmd_type = BrakeCmd.CMD_PERCENT
             bcmd.pedal_cmd = brake
             self.brake_pub.publish(bcmd)
     

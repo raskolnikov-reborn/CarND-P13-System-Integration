@@ -5,14 +5,13 @@ import eventlet
 import eventlet.wsgi
 import time
 from flask import Flask, render_template
-import sys
+
 from bridge import Bridge
 from conf import conf
 
 sio = socketio.Server()
 app = Flask(__name__)
-bridge = Bridge(conf)
-msgs = {}
+msgs = []
 
 dbw_enable = False
 
@@ -21,15 +20,11 @@ def connect(sid, environ):
     print("connect ", sid)
 
 def send(topic, data):
-    # s = 1
-    # msgs.append((topic, data))
-
-    # Lag fix changes
-    # Don't append, overwrite
-    msgs[topic] = data
+    s = 1
+    msgs.append((topic, data))
     #sio.emit(topic, data=json.dumps(data), skip_sid=True)
 
-bridge.register_server(send)
+bridge = Bridge(conf, send)
 
 @sio.on('telemetry')
 def telemetry(sid, data):
@@ -39,8 +34,7 @@ def telemetry(sid, data):
         bridge.publish_dbw_status(dbw_enable)
     bridge.publish_odometry(data)
     for i in range(len(msgs)):
-        # topic, data = msgs.pop(0)
-        topic, data = msgs.popitem()
+        topic, data = msgs.pop(0)
         sio.emit(topic, data=data, skip_sid=True)
 
 @sio.on('control')
@@ -64,8 +58,6 @@ def image(sid, data):
     bridge.publish_camera(data)
 
 if __name__ == '__main__':
-
-    sys.excepthook = lambda *args: None
 
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)
