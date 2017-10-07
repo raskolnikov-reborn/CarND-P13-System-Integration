@@ -10,25 +10,19 @@ from twist_controller import Controller
 
 '''
 You can build this node only after you have built (or partially built) the `waypoint_updater` node.
-
 You will subscribe to `/twist_cmd` message which provides the proposed linear and angular velocities.
 You can subscribe to any other message that you find important or refer to the document for list
 of messages subscribed to by the reference implementation of this node.
-
 One thing to keep in mind while building this node and the `twist_controller` class is the status
 of `dbw_enabled`. While in the simulator, its enabled all the time, in the real car, that will
 not be the case. This may cause your PID controller to accumulate error because the car could
 temporarily be driven by a human instead of your controller.
-
 We have provided two launch files with this node. Vehicle specific values (like vehicle_mass,
 wheel_base) etc should not be altered in these files.
-
 We have also provided some reference implementations for PID controller and other utility classes.
 You are free to use them or build your own.
-
 Once you have the proposed throttle, brake, and steer values, publish it on the various publishers
 that we have created in the `__init__` function.
-
 '''
 
 class DBWNode(object):
@@ -60,6 +54,8 @@ class DBWNode(object):
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_cb, queue_size=1)
         rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.st_report_cb, queue_size=1)
 
+        self.last_throttle = 0.0
+
         self.throttle_deadband = 0.1
         self.dbw_enabled = False
 
@@ -77,7 +73,7 @@ class DBWNode(object):
         self.controller = Controller(**arg_list)
 
         # Set Hz rate for ros spin
-        self.loop_rate = 10
+        self.loop_rate = 40
 
         rate = rospy.Rate(self.loop_rate)
 
@@ -122,10 +118,12 @@ class DBWNode(object):
 
         # Throttle Deadzone
         # Prevent any untoward motion due to PID oscillations about zero
-        if throttle > 0.001:
-            if throttle < self.throttle_deadband:
-                throttle = 0.0
-                brake = 100000
+        if throttle < self.throttle_deadband:
+            throttle = 0.0
+
+        # rospy.logwarn("TBS Values are (%f,%f,%f)", throttle, brake, steer)
+
+        if throttle > 0.001 and throttle != self.last_throttle:
             tcmd = ThrottleCmd()
             tcmd.enable = True
             tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
@@ -141,7 +139,7 @@ class DBWNode(object):
         if brake > 0.001:
             bcmd = BrakeCmd()
             bcmd.enable = True
-            bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
+            bcmd.pedal_cmd_type = BrakeCmd.CMD_PERCENT
             bcmd.pedal_cmd = brake
             self.brake_pub.publish(bcmd)
     
