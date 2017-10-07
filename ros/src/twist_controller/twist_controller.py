@@ -25,8 +25,8 @@ class Controller(object):
         # Create Variable for the last update time
         self.last_update_time = None
 
-        self.pid_c = PID(10.2, 0.001, 0.7, -self.accel_limit, self.accel_limit)
-        self.steer_pid = PID(0.8, 0.004, 0.2, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(5.2, 0.05, 0.3, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(0.8, 0.05, 0.2, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
@@ -74,9 +74,9 @@ class Controller(object):
             dt = time - self.last_update_time
             self.last_update_time = time
 
-            # if vehicle is at a stop we want to reset the integral component
+            # if vehicle is trying to stop we want to reset the integral component
             # of the PID controllers so as to not oscillate around zero
-            if present_v < 0.5:
+            if present_v < 1.0:
                 self.pid_c.reset()
                 self.steer_pid.reset()
 
@@ -88,7 +88,7 @@ class Controller(object):
             reverse_axis = -forward_axis*(self.decel_limit/(-self.accel_limit))
 
             # if forward axis is positive only then give any throttle
-            throttle = max(0.0, forward_axis)
+            throttle = min(max(0.0, forward_axis), 0.33)
             # Only apply brakes if the reverse axis value is large enough to supersede the deadband
             #TODO: Figure out how this tuning will work for the real vehicle
             brake = max(0.0, reverse_axis - self.brake_deadband)

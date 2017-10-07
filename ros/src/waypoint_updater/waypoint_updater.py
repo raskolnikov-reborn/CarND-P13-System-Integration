@@ -157,10 +157,10 @@ class WaypointUpdater ( object ):
 
 
                     # define a max permissible deceleration for comfort
-                    max_permissible_deceleration = 2.0
+                    max_permissible_deceleration = 1.0
 
                     # define a min deceleration to avoid local minima
-                    min_safety_deceleration = 0.5
+                    min_safety_deceleration = 1.0
 
                     # Find Min Deceleration Distance using v2 = u2 + 2as
                     min_braking_distance = (self.current_velocity**2)/(2*max_permissible_deceleration)
@@ -176,7 +176,7 @@ class WaypointUpdater ( object ):
                             braking_waypoints = i
                             break
 
-                    if min_braking_distance < 100 and crossed_light is False:
+                    if min_braking_distance < 150 and crossed_light is False:
                         # safety buffer
                         braking_clearance = 5
                         braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
