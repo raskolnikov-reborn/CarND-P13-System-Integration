@@ -25,7 +25,7 @@ class Controller(object):
         # Create Variable for the last update time
         self.last_update_time = None
 
-        self.pid_c = PID(5.2, 0.05, 0.3, -self.accel_limit, self.accel_limit)
+        self.pid_c = PID(10.2, 0.05, 0.3, -self.accel_limit, self.accel_limit)
         self.steer_pid = PID(0.8, 0.05, 0.2, -max_steer_angle, max_steer_angle)
 
         # Create a steering controller
@@ -94,7 +94,7 @@ class Controller(object):
             brake = max(0.0, reverse_axis - self.brake_deadband)
 
             # Convert brake to Torque value since that is what the publisher expects
-            brake *= self.brake_scale*100
+            brake *= 100
 
             # get the steering value from the yaw controller
             steering = self.steer_c.get_steering(target_v, target_w, present_v)
