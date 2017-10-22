@@ -181,7 +181,10 @@ class WaypointUpdater ( object ):
                         braking_clearance = 5
                         braking_start_wp = max( 0, closest_wp - braking_waypoints - braking_clearance )
 
-                        deceleration = max(min_safety_deceleration, self.current_velocity/(braking_waypoints * 1))
+                        if braking_start_wp <= 2*braking_clearance:
+                            deceleration = 100.0
+                        else:
+                            deceleration = max(min_safety_deceleration, self.current_velocity/(braking_waypoints * 1))
 
                         for i in range ( braking_start_wp, LOOKAHEAD_WPS):
                             dec_step = i - braking_start_wp + 1

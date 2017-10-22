@@ -127,8 +127,6 @@ class DBWNode(object):
         if throttle < self.throttle_deadband:
             throttle = 0.0
 
-        # rospy.logwarn("TBS Values are (%f,%f,%f)", throttle, brake, steer)
-
         if throttle > 0.001 and throttle != self.last_throttle:
             tcmd = ThrottleCmd()
             tcmd.enable = True
@@ -146,7 +144,7 @@ class DBWNode(object):
             bcmd = BrakeCmd()
             bcmd.enable = True
             bcmd.pedal_cmd_type = BrakeCmd.CMD_PERCENT
-            bcmd.pedal_cmd = brake
+            bcmd.pedal_cmd = min(brake, 70)
             self.brake_pub.publish(bcmd)
     
     def cv_cb(self, msg):

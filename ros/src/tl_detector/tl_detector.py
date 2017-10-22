@@ -337,11 +337,15 @@ class TLDetector(object):
             return TrafficLight.UNKNOWN
         else:
             # Get classification
-            light_state = self.light_classifier.get_classification(cv_image)
-            img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_output, self.target_encoding)
+            if hasattr(self, "light_classifier"):
+                light_state = self.light_classifier.get_classification(cv_image)
+                img_msg = self.bridge.cv2_to_imgmsg(self.light_classifier.image_np_output, self.target_encoding)
+                # publish the output
+                self.debug_img_pub.publish(img_msg)
+            else:
+                light_state = TrafficLight.UNKNOWN
 
-            # publish the output
-            self.debug_img_pub.publish(img_msg)
+
             return light_state
 
     # return ground truth light state

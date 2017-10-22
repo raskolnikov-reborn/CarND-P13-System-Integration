@@ -25,8 +25,8 @@ class Controller(object):
         # Create Variable for the last update time
         self.last_update_time = None
 
-        self.pid_c = PID(10.2, 0.05, 0.3, -self.accel_limit, self.accel_limit)
-        self.steer_pid = PID(0.8, 0.05, 0.2, -max_steer_angle, max_steer_angle)
+        self.pid_c = PID(11.2, 0.05, 0.3, -self.accel_limit, self.accel_limit)
+        self.steer_pid = PID(0.8, 0.05, 0.2, -max_steer_angle/2, max_steer_angle/2)
 
         # Create a steering controller
         self.steer_c = YawController(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed = 0.0, max_lat_accel = max_lat_acc, max_steer_angle = max_steer_angle)
